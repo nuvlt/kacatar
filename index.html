@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kaç Atar</title>
+
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+
+<!-- Tailwind CDN (hızlı POC) -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "primary": "#0d7ff2",
+          "background-light": "#f5f7f8",
+          "background-dark": "#101922",
+          "foreground-light": "#111827",
+          "foreground-dark": "#f9fafb",
+          "subtle-light": "#6b7280",
+          "subtle-dark": "#9ca3af",
+          "border-light": "#e5e7eb",
+          "border-dark": "#374151"
+        },
+        fontFamily: { "display": ["Plus Jakarta Sans"] },
+      },
+    },
+  }
+</script>
+
+<style>
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="flex flex-col min-h-screen">
+  <header class="border-b border-border-light dark:border-border-dark bg-background-light/80 sticky top-0 z-10">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-4">
+          <div class="text-primary size-8">
+            <!-- logo svg -->
+            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M39.475 21.6262C40.358 21.4363 40.6863 21.5589 40.7581 21.5934C40.7876 21.655 40.8547 21.857 40.8082 22.3336C40.7408 23.0255 40.4502 24.0046 39.8572 25.2301C38.6799 27.6631 36.5085 30.6631 33.5858 33.5858C30.6631 36.5085 27.6632 38.6799 25.2301 39.8572C24.0046 40.4502 23.0255 40.7407 22.3336 40.8082C21.8571 40.8547 21.6551 40.7875 21.5934 40.7581C21.5589 40.6863 21.4363 40.358 21.6262 39.475C21.8562 38.4054 22.4689 36.9657 23.5038 35.2817C24.7575 33.2417 26.5497 30.9744 28.7621 28.762C30.9744 26.5497 33.2417 24.7574 35.2817 23.5037C36.9657 22.4689 38.4054 21.8562 39.475 21.6262ZM4.41189 29.2403L18.7597 43.5881C19.8813 44.7097 21.4027 44.9179 22.7217 44.7893C24.0585 44.659 25.5148 44.1631 26.9723 43.4579C29.9052 42.0387 33.2618 39.5667 36.4142 36.4142C39.5667 33.2618 42.0387 29.9052 43.4579 26.9723C44.1631 25.5148 44.659 24.0585 44.7893 22.7217C44.9179 21.4027 44.7097 19.8813 43.5881 18.7597L29.2403 4.41187C27.8527 3.02428 25.8765 3.02573 24.2861 3.36776C22.6081 3.72863 20.7334 4.58419 18.8396 5.74801C16.4978 7.18716 13.9881 9.18353 11.5858 11.5858C9.18354 13.988 7.18717 16.4978 5.74802 18.8396C4.58421 20.7334 3.72865 22.6081 3.36778 24.2861C3.02574 25.8765 3.02429 27.8527 4.41189 29.2403Z" fill="currentColor" fill-rule="evenodd"></path></svg>
+          </div>
+          <h1 class="text-xl font-bold text-foreground-light dark:text-foreground-dark">Kaç Atar</h1>
+        </div>
+        <nav class="hidden md:flex items-center gap-6">
+          <a class="text-sm font-medium text-subtle-light hover:text-primary" href="#">Maçlar</a>
+          <a class="text-sm font-medium text-subtle-light hover:text-primary" href="#">Tahminler</a>
+          <a class="text-sm font-medium text-subtle-light hover:text-primary" href="#">Sonuçlar</a>
+        </nav>
+        <div class="flex items-center gap-4">
+          <button id="btn-profile" class="p-2 rounded-full text-subtle-light hover:bg-primary/10 transition"><span class="material-symbols-outlined">person</span></button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <h2 class="text-3xl font-bold text-foreground-light text-center mb-8">Yaklaşan Maçlar</h2>
+
+      <!-- BURAYA Firestore'dan yüklenen maç kartları gelecek -->
+      <div id="matches-list" class="grid gap-8 max-w-4xl mx-auto"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Firebase modular SDK via CDN (module script) -->
+<script type="module">
+  // --- 1) BURAYA kendi Firebase konfigürasyonunu koy ---
+  const firebaseConfig = {
+   apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+    authDomain: "kac-atar.firebaseapp.com",
+    projectId: "kac-atar",
+    storageBucket: "kac-atar.firebasestorage.app",
+    messagingSenderId: "1070494452209",
+    appId: "1:1070494452209:web:e24a9bbd0b4fb543a79c50",
+    measurementId: "G-8ZMRLXBX7Z"
+  };
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+  import { getFirestore, collection, doc, onSnapshot, setDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  let CURRENT_UID = null;
+
+  // Sign in anonymously (MVP). Kullanıcıyı tanımlamak için uid kullanacağız.
+  signInAnonymously(auth).catch(err => {
+    console.error("Anon auth error:", err);
+  });
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      CURRENT_UID = user.uid;
+      console.log("signed in uid:", CURRENT_UID);
+      // after auth, we can load UI or enable vote buttons
+    } else {
+      CURRENT_UID = null;
+    }
+  });
+
+  // DOM container
+  const container = document.getElementById("matches-list");
+
+  // Real-time dinleme: matches koleksiyonu
+  const matchesCol = collection(db, "matches");
+  const q = query(matchesCol, orderBy("date", "asc"));
+  onSnapshot(q, snap => {
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMatches(docs);
+  });
+
+  function renderMatches(matches) {
+    container.innerHTML = "";
+    matches.forEach(m => {
+      const card = document.createElement("div");
+      card.className = "bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark rounded-xl overflow-hidden shadow-sm p-6";
+
+      // temel içerik
+      card.innerHTML = `
+        <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
+          <div class="flex-1">
+            <p class="text-sm text-subtle-light">${formatDate(m.date)}</p>
+            <h3 class="text-2xl font-bold text-foreground-light mt-1">${escapeHtml(m.home)} - ${escapeHtml(m.away)}</h3>
+          </div>
+          ${m.coverImage ? `<div class="flex-shrink-0 w-full md:w-48 h-32 rounded-lg bg-cover bg-center" style="background-image: url('${m.coverImage}')"></div>` : ""}
+        </div>
+
+        <div class="mt-6">
+          <div class="flex flex-col sm:flex-row items-center gap-4">
+            <div class="flex items-center gap-4 w-full sm:w-auto">
+              <input data-home-input class="form-input w-full rounded-lg border p-3 text-center font-bold text-lg h-14" placeholder="${escapeHtml(m.home)}" type="number"/>
+              <span class="text-2xl font-bold text-subtle-light">-</span>
+              <input data-away-input class="form-input w-full rounded-lg border p-3 text-center font-bold text-lg h-14" placeholder="${escapeHtml(m.away)}" type="number"/>
+            </div>
+            <button data-vote-btn class="w-full sm:w-auto bg-primary text-white font-bold py-3 px-6 rounded-lg h-14 hover:opacity-90 transition flex items-center gap-2">
+              <span class="material-symbols-outlined">how_to_vote</span><span>Oy Ver</span>
+            </button>
+          </div>
+          <p class="text-sm text-subtle-light mt-4 text-center sm:text-left">En Popüler Tahmin: <span data-top-pred class="font-bold">—</span> (<span data-top-count>0</span> oy)</p>
+        </div>
+      `;
+
+      // event listeners
+      const homeInput = card.querySelector("[data-home-input]");
+      const awayInput = card.querySelector("[data-away-input]");
+      const voteBtn = card.querySelector("[data-vote-btn]");
+      const topPredSpan = card.querySelector("[data-top-pred]");
+      const topCountSpan = card.querySelector("[data-top-count]");
+
+      voteBtn.addEventListener("click", async () => {
+        if (!CURRENT_UID) { alert("Kısa bir süre içinde oturum açılıyor. Tekrar dene."); return; }
+        const h = homeInput.value.trim();
+        const a = awayInput.value.trim();
+        if (h === "" || a === "" || isNaN(h) || isNaN(a)) { alert("Lütfen skorları sayı girerek doldur."); return; }
+
+        // Her uid için sadece 1 oy: votes dokümanın id'si uid olacak
+        const voteDocRef = doc(db, "matches", m.id, "votes", CURRENT_UID);
+        try {
+          await setDoc(voteDocRef, {
+            home: parseInt(h, 10),
+            away: parseInt(a, 10),
+            createdAt: serverTimestamp(),
+            uid: CURRENT_UID
+          });
+          voteBtn.textContent = "Oy Kaydedildi ✓";
+          voteBtn.disabled = true;
+        } catch (err) {
+          console.error(err);
+          alert("Oy gönderilemedi. Konsolu kontrol et.");
+        }
+      });
+
+      // realtime dinle: votes subcollection — en popüler tahmini hesapla
+      const votesCol = collection(db, "matches", m.id, "votes");
+      onSnapshot(votesCol, vsnap => {
+        const counts = {};
+        vsnap.forEach(vd => {
+          const data = vd.data();
+          const key = `${data.home}-${data.away}`;
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        // top
+        let topKey = null, topCount = 0;
+        for (const [k,v] of Object.entries(counts)) {
+          if (v > topCount) { topCount = v; topKey = k; }
+        }
+        topPredSpan.textContent = topKey ?? "—";
+        topCountSpan.textContent = topCount;
+        // disable vote button if current uid already voted:
+        if (CURRENT_UID) {
+          const userVoted = vsnap.docs.some(d => d.id === CURRENT_UID);
+          voteBtn.disabled = userVoted;
+          if (userVoted) voteBtn.textContent = "Oy Verdiniz ✓";
+        }
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  // helper: tarih gösterimi (Firestore Timestamp veya ISO string)
+  function formatDate(d) {
+    if (!d) return "Tarih yok";
+    try {
+      if (d.seconds) { // Firestore Timestamp
+        return new Date(d.seconds * 1000).toLocaleString();
+      } else return new Date(d).toLocaleString();
+    } catch (e) { return String(d); }
+  }
+
+  // küçük güvenlik helper'ı (XSS'e karşı)
+  function escapeHtml(s) {
+    return String(s || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  }
+</script>
+</body>
+</html>
