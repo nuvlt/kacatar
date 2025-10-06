@@ -1,3 +1,4 @@
+console.log("Sync başladı");
 {
   "name": "sync-matches",
   "version": "1.0.0",
