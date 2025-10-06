@@ -33,9 +33,9 @@
     import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    // ✅ Senin Firebase Config'in buraya gelecek
+    // ✅ Kendi Firebase config'in ile değiştir
     const firebaseConfig = {
-  apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
     authDomain: "kac-atar.firebaseapp.com",
     projectId: "kac-atar",
     storageBucket: "kac-atar.firebasestorage.app",
@@ -50,7 +50,7 @@
 
     let currentUser = null;
 
-    // 🔹 Kullanıcıyı anonim giriş yaptır
+    // 🔹 Anon login
     signInAnonymously(auth).catch((error) => {
       console.error("Auth error:", error);
     });
@@ -62,7 +62,7 @@
       }
     });
 
-    // 🔹 Maçları Firestore'dan çek ve listele
+    // 🔹 Maçları listele
     async function loadMatches() {
       const matchesDiv = document.getElementById("matches");
       matchesDiv.innerHTML = "";
@@ -87,7 +87,9 @@
             <input type="number" placeholder="${match.away}" class="away-score w-20 p-2 border rounded">
             <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
           </div>
-          <p class="text-sm text-gray-500">En Popüler Tahmin: ${match.popularPrediction || "—"} (${match.voteCount || 0} oy)</p>
+          <p class="text-sm text-gray-500">
+            En Popüler Tahmin: ${match.popularPrediction || "—"} (${match.voteCount || 0} oy)
+          </p>
         `;
 
         matchesDiv.appendChild(card);
@@ -96,7 +98,7 @@
 
     loadMatches();
 
-    // 🔹 Oy verme
+    // 🔹 Oy verme + popüler tahmin hesaplama
     document.addEventListener("click", async (e) => {
       if (e.target.closest(".vote-button")) {
         const card = e.target.closest(".match-card");
@@ -116,10 +118,37 @@
           const matchSnap = await getDoc(matchRef);
 
           if (matchSnap.exists()) {
+            // Oy kaydet (kendi UID'sine)
             await updateDoc(matchRef, {
               [`votes.${currentUser.uid}`]: prediction
             });
+
+            // Güncel veriyi tekrar çek
+            const updatedSnap = await getDoc(matchRef);
+            const votes = updatedSnap.data().votes || {};
+            const counts = {};
+
+            Object.values(votes).forEach((pred) => {
+              counts[pred] = (counts[pred] || 0) + 1;
+            });
+
+            // En popüler tahmini bul
+            let popular = null;
+            let maxCount = 0;
+            for (let [score, count] of Object.entries(counts)) {
+              if (count > maxCount) {
+                popular = score;
+                maxCount = count;
+              }
+            }
+
+            await updateDoc(matchRef, {
+              popularPrediction: popular,
+              voteCount: maxCount
+            });
+
             alert("Oyun kaydedildi ✅");
+            loadMatches(); // ekranı güncelle
           } else {
             alert("Maç bulunamadı!");
           }
