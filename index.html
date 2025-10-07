@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Kaç Atar</title>
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -35,22 +35,21 @@
 
     // ✅ Kendi Firebase config'in ile değiştir
     const firebaseConfig = {
-apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
-    authDomain: "kac-atar.firebaseapp.com",
-    projectId: "kac-atar",
-    storageBucket: "kac-atar.firebasestorage.app",
-    messagingSenderId: "1070494452209",
-    appId: "1:1070494452209:web:e24a9bbd0b4fb543a79c50",
-    measurementId: "G-8ZMRLXBX7Z"
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+      storageBucket: "kac-atar.firebasestorage.app",
+      messagingSenderId: "1070494452209",
+      appId: "1:1070494452209:web:e24a9bbd0b4fb543a79c50",
+      measurementId: "G-8ZMRLXBX7Z"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-
     let currentUser = null;
 
-    // 🔹 Anon login
+    // Anon login
     signInAnonymously(auth).catch((error) => {
       console.error("Auth error:", error);
     });
@@ -62,43 +61,121 @@ apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
       }
     });
 
-    // 🔹 Maçları listele
+    // --- Yardımcı: date parse & format ---
+    function parseDateField(dateField, timeField) {
+      // dateField: Firestore Timestamp objesi OR ISO/string OR null
+      if (!dateField) return null;
+
+      // Firestore Timestamp (has seconds)
+      if (typeof dateField === "object") {
+        // Modern SDK: .seconds (number)
+        if (typeof dateField.seconds === "number") {
+          return new Date(dateField.seconds * 1000);
+        }
+        // Or timestamp object with toDate()
+        if (typeof dateField.toDate === "function") {
+          try {
+            return dateField.toDate();
+          } catch (e) {
+            // fallthrough
+          }
+        }
+      }
+
+      // String handling (ISO or YYYY-MM-DD)
+      if (typeof dateField === "string") {
+        let s = dateField;
+        // If only date like "2025-10-18" and time available, combine
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s) && timeField) {
+          s = `${s}T${timeField}`;
+        }
+        const d = new Date(s);
+        if (!isNaN(d)) return d;
+      }
+
+      return null;
+    }
+
+    function formatMatchDate(match) {
+      const d = parseDateField(match.date, match.time);
+      if (d) {
+        return d.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
+      }
+      // fallbacks
+      if (match.time && match.date == null) return `Saat: ${match.time}`;
+      return "Tarih bilinmiyor";
+    }
+
+    // --- Load & render matches (daha dayanıklı) ---
     async function loadMatches() {
       const matchesDiv = document.getElementById("matches");
       matchesDiv.innerHTML = "";
 
       const querySnapshot = await getDocs(collection(db, "matches"));
+      const matches = [];
       querySnapshot.forEach((docSnap) => {
-        const match = docSnap.data();
-        const matchId = docSnap.id;
+        const m = docSnap.data() || {};
+        m._id = docSnap.id;
+        matches.push(m);
+      });
 
+      // sort: tarih varsa öne al, yoksa alfabetik
+      matches.sort((a, b) => {
+        const da = parseDateField(a.date, a.time);
+        const dbx = parseDateField(b.date, b.time);
+        if (da && dbx) return da - dbx;
+        if (da) return -1;
+        if (dbx) return 1;
+        return (a.home || "").localeCompare(b.home || "");
+      });
+
+      for (const match of matches) {
+        const matchId = match._id;
         const card = document.createElement("div");
         card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
         card.dataset.id = matchId;
 
+        const dateText = formatMatchDate(match);
+        const homeName = match.home || "Bilinmiyor";
+        const awayName = match.away || "Bilinmiyor";
+        const popularText = match.popularPrediction || "—";
+        const voteCount = match.voteCount || 0;
+
         card.innerHTML = `
           <div>
-            <p class="text-sm text-gray-500">${new Date(match.date.seconds * 1000).toLocaleString()}</p>
-            <h3 class="text-xl font-bold">${match.home} - ${match.away}</h3>
+            <p class="text-sm text-gray-500">${dateText}</p>
+            <h3 class="text-xl font-bold">${escapeHtml(homeName)} - ${escapeHtml(awayName)}</h3>
           </div>
           <div class="flex items-center gap-3">
-            <input type="number" placeholder="${match.home}" class="home-score w-20 p-2 border rounded">
+            <input type="number" placeholder="${escapeHtml(homeName)}" class="home-score w-20 p-2 border rounded">
             <span class="font-bold">-</span>
-            <input type="number" placeholder="${match.away}" class="away-score w-20 p-2 border rounded">
+            <input type="number" placeholder="${escapeHtml(awayName)}" class="away-score w-20 p-2 border rounded">
             <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
           </div>
           <p class="text-sm text-gray-500">
-            En Popüler Tahmin: ${match.popularPrediction || "—"} (${match.voteCount || 0} oy)
+            En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
           </p>
         `;
 
         matchesDiv.appendChild(card);
-      });
+      }
     }
 
+    // Basit HTML kaçış fonksiyonu (placeholder/isimlerde güvenlik)
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // İlk yükleme
     loadMatches();
 
-    // 🔹 Oy verme + popüler tahmin hesaplama
+    // Oy verme + popüler tahmin hesaplama
     document.addEventListener("click", async (e) => {
       if (e.target.closest(".vote-button")) {
         const card = e.target.closest(".match-card");
