@@ -33,7 +33,6 @@
     import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    // ✅ Kendi Firebase config'in ile değiştir
     const firebaseConfig = {
       apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
       authDomain: "kac-atar.firebaseapp.com",
@@ -49,10 +48,8 @@
     const auth = getAuth(app);
     let currentUser = null;
 
-    // Anon login
-    signInAnonymously(auth).catch((error) => {
-      console.error("Auth error:", error);
-    });
+    // 🔹 Anon login
+    signInAnonymously(auth).catch((error) => console.error("Auth error:", error));
 
     onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -61,34 +58,20 @@
       }
     });
 
-    // --- Yardımcı: date parse & format ---
+    // --- Yardımcı: tarih parse & format ---
     function parseDateField(dateField, timeField) {
-      // dateField: Firestore Timestamp objesi OR ISO/string OR null
       if (!dateField) return null;
 
-      // Firestore Timestamp (has seconds)
       if (typeof dateField === "object") {
-        // Modern SDK: .seconds (number)
-        if (typeof dateField.seconds === "number") {
-          return new Date(dateField.seconds * 1000);
-        }
-        // Or timestamp object with toDate()
+        if (typeof dateField.seconds === "number") return new Date(dateField.seconds * 1000);
         if (typeof dateField.toDate === "function") {
-          try {
-            return dateField.toDate();
-          } catch (e) {
-            // fallthrough
-          }
+          try { return dateField.toDate(); } catch {}
         }
       }
 
-      // String handling (ISO or YYYY-MM-DD)
       if (typeof dateField === "string") {
         let s = dateField;
-        // If only date like "2025-10-18" and time available, combine
-        if (/^\d{4}-\d{2}-\d{2}$/.test(s) && timeField) {
-          s = `${s}T${timeField}`;
-        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s) && timeField) s = `${s}T${timeField}`;
         const d = new Date(s);
         if (!isNaN(d)) return d;
       }
@@ -98,15 +81,23 @@
 
     function formatMatchDate(match) {
       const d = parseDateField(match.date, match.time);
-      if (d) {
-        return d.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
-      }
-      // fallbacks
-      if (match.time && match.date == null) return `Saat: ${match.time}`;
+      if (d) return d.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
+      if (match.time && !match.date) return `Saat: ${match.time}`;
       return "Tarih bilinmiyor";
     }
 
-    // --- Load & render matches (daha dayanıklı) ---
+    // --- HTML güvenliği ---
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // --- Maçları yükle ve göster ---
     async function loadMatches() {
       const matchesDiv = document.getElementById("matches");
       matchesDiv.innerHTML = "";
@@ -119,7 +110,7 @@
         matches.push(m);
       });
 
-      // sort: tarih varsa öne al, yoksa alfabetik
+      // Tarihe göre sırala
       matches.sort((a, b) => {
         const da = parseDateField(a.date, a.time);
         const dbx = parseDateField(b.date, b.time);
@@ -131,27 +122,44 @@
 
       for (const match of matches) {
         const matchId = match._id;
-        const card = document.createElement("div");
-        card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
-        card.dataset.id = matchId;
-
         const dateText = formatMatchDate(match);
         const homeName = match.home || "Bilinmiyor";
         const awayName = match.away || "Bilinmiyor";
         const popularText = match.popularPrediction || "—";
         const voteCount = match.voteCount || 0;
 
+        const homeLogo = match.homeLogo || "";
+        const awayLogo = match.awayLogo || "";
+        const leagueName = match.league || "";
+
+        const card = document.createElement("div");
+        card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
+        card.dataset.id = matchId;
+
         card.innerHTML = `
           <div>
-            <p class="text-sm text-gray-500">${dateText}</p>
-            <h3 class="text-xl font-bold">${escapeHtml(homeName)} - ${escapeHtml(awayName)}</h3>
+            <p class="text-xs text-blue-600 font-semibold mb-1">${escapeHtml(leagueName)}</p>
+            <p class="text-sm text-gray-500 mb-1">${escapeHtml(dateText)}</p>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <img src="${homeLogo}" alt="${homeName}" class="w-6 h-6 rounded-full border">
+                <span class="font-semibold">${escapeHtml(homeName)}</span>
+              </div>
+              <span class="text-gray-400 font-bold">vs</span>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold">${escapeHtml(awayName)}</span>
+                <img src="${awayLogo}" alt="${awayName}" class="w-6 h-6 rounded-full border">
+              </div>
+            </div>
           </div>
+
           <div class="flex items-center gap-3">
             <input type="number" placeholder="${escapeHtml(homeName)}" class="home-score w-20 p-2 border rounded">
             <span class="font-bold">-</span>
             <input type="number" placeholder="${escapeHtml(awayName)}" class="away-score w-20 p-2 border rounded">
             <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
           </div>
+
           <p class="text-sm text-gray-500">
             En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
           </p>
@@ -161,21 +169,10 @@
       }
     }
 
-    // Basit HTML kaçış fonksiyonu (placeholder/isimlerde güvenlik)
-    function escapeHtml(str) {
-      if (!str) return "";
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
     // İlk yükleme
     loadMatches();
 
-    // Oy verme + popüler tahmin hesaplama
+    // --- Oy verme işlemi ---
     document.addEventListener("click", async (e) => {
       if (e.target.closest(".vote-button")) {
         const card = e.target.closest(".match-card");
@@ -195,12 +192,8 @@
           const matchSnap = await getDoc(matchRef);
 
           if (matchSnap.exists()) {
-            // Oy kaydet (kendi UID'sine)
-            await updateDoc(matchRef, {
-              [`votes.${currentUser.uid}`]: prediction
-            });
+            await updateDoc(matchRef, { [`votes.${currentUser.uid}`]: prediction });
 
-            // Güncel veriyi tekrar çek
             const updatedSnap = await getDoc(matchRef);
             const votes = updatedSnap.data().votes || {};
             const counts = {};
@@ -209,7 +202,6 @@
               counts[pred] = (counts[pred] || 0) + 1;
             });
 
-            // En popüler tahmini bul
             let popular = null;
             let maxCount = 0;
             for (let [score, count] of Object.entries(counts)) {
@@ -219,13 +211,9 @@
               }
             }
 
-            await updateDoc(matchRef, {
-              popularPrediction: popular,
-              voteCount: maxCount
-            });
-
+            await updateDoc(matchRef, { popularPrediction: popular, voteCount: maxCount });
             alert("Oyun kaydedildi ✅");
-            loadMatches(); // ekranı güncelle
+            loadMatches();
           } else {
             alert("Maç bulunamadı!");
           }
