@@ -33,6 +33,7 @@
     import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+    // --- FIREBASE CONFIG (kendi değerlerinle bırak) ---
     const firebaseConfig = {
       apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
       authDomain: "kac-atar.firebaseapp.com",
@@ -48,9 +49,8 @@
     const auth = getAuth(app);
     let currentUser = null;
 
-    // 🔹 Anon login
-    signInAnonymously(auth).catch((error) => console.error("Auth error:", error));
-
+    // Anon giriş
+    signInAnonymously(auth).catch((err) => console.error("Auth error:", err));
     onAuthStateChanged(auth, (user) => {
       if (user) {
         currentUser = user;
@@ -58,7 +58,10 @@
       }
     });
 
-    // --- Yardımcı: tarih parse & format ---
+    // 1x1 şeffaf GIF (logo yoksa kırık resim çıkmasın)
+    const TRANSPARENT_PX = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+
+    // --- Tarih parse & format yardımcıları ---
     function parseDateField(dateField, timeField) {
       if (!dateField) return null;
 
@@ -86,7 +89,7 @@
       return "Tarih bilinmiyor";
     }
 
-    // --- HTML güvenliği ---
+    // Basit HTML kaçış (gösterim için)
     function escapeHtml(str) {
       if (!str) return "";
       return String(str)
@@ -97,20 +100,20 @@
         .replace(/'/g, "&#39;");
     }
 
-    // --- Maçları yükle ve göster ---
+    // --- Maçları yükle ve render et ---
     async function loadMatches() {
       const matchesDiv = document.getElementById("matches");
       matchesDiv.innerHTML = "";
 
-      const querySnapshot = await getDocs(collection(db, "matches"));
+      const snap = await getDocs(collection(db, "matches"));
       const matches = [];
-      querySnapshot.forEach((docSnap) => {
-        const m = docSnap.data() || {};
-        m._id = docSnap.id;
+      snap.forEach(s => {
+        const m = s.data() || {};
+        m._id = s.id;
         matches.push(m);
       });
 
-      // Tarihe göre sırala
+      // Tarihe göre sırala (varsa)
       matches.sort((a, b) => {
         const da = parseDateField(a.date, a.time);
         const dbx = parseDateField(b.date, b.time);
@@ -128,43 +131,99 @@
         const popularText = match.popularPrediction || "—";
         const voteCount = match.voteCount || 0;
 
-        const homeLogo = match.homeLogo || "";
-        const awayLogo = match.awayLogo || "";
+        // logo alanları (boşsa transparent)
+        const homeLogo = match.homeLogo || TRANSPARENT_PX;
+        const awayLogo = match.awayLogo || TRANSPARENT_PX;
         const leagueName = match.league || "";
 
         const card = document.createElement("div");
         card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
         card.dataset.id = matchId;
 
-        card.innerHTML = `
-          <div>
-            <p class="text-xs text-blue-600 font-semibold mb-1">${escapeHtml(leagueName)}</p>
-            <p class="text-sm text-gray-500 mb-1">${escapeHtml(dateText)}</p>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <img src="${homeLogo}" alt="${homeName}" class="w-6 h-6 rounded-full border">
-                <span class="font-semibold">${escapeHtml(homeName)}</span>
-              </div>
-              <span class="text-gray-400 font-bold">vs</span>
-              <div class="flex items-center gap-2">
-                <span class="font-semibold">${escapeHtml(awayName)}</span>
-                <img src="${awayLogo}" alt="${awayName}" class="w-6 h-6 rounded-full border">
-              </div>
-            </div>
-          </div>
+        // DOM ile güvenli oluşturma (innerHTML ile doğrudan URL/isim eklemekten kaçınıyoruz)
+        const topDiv = document.createElement("div");
+        const leagueP = document.createElement("p");
+        leagueP.className = "text-xs text-blue-600 font-semibold mb-1";
+        leagueP.textContent = leagueName;
+        const dateP = document.createElement("p");
+        dateP.className = "text-sm text-gray-500 mb-1";
+        dateP.textContent = dateText;
 
-          <!-- Oy verme satırı ortalanmış -->
-          <div class="flex items-center justify-center gap-3 mt-2">
-            <input type="number" placeholder="${escapeHtml(homeName)}" class="home-score w-20 p-2 border rounded text-center">
-            <span class="font-bold">-</span>
-            <input type="number" placeholder="${escapeHtml(awayName)}" class="away-score w-20 p-2 border rounded text-center">
-            <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
-          </div>
+        const teamsRow = document.createElement("div");
+        teamsRow.className = "flex items-center justify-between";
 
-          <p class="text-sm text-gray-500 text-center">
-            En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
-          </p>
-        `;
+        const left = document.createElement("div");
+        left.className = "flex items-center gap-2";
+        const homeImg = document.createElement("img");
+        homeImg.src = homeLogo;
+        homeImg.alt = homeName;
+        homeImg.className = "w-6 h-6 rounded-full border";
+        const homeSpan = document.createElement("span");
+        homeSpan.className = "font-semibold";
+        homeSpan.textContent = homeName;
+        left.appendChild(homeImg);
+        left.appendChild(homeSpan);
+
+        const vsSpan = document.createElement("span");
+        vsSpan.className = "text-gray-400 font-bold";
+        vsSpan.textContent = "vs";
+
+        const right = document.createElement("div");
+        right.className = "flex items-center gap-2";
+        const awaySpan = document.createElement("span");
+        awaySpan.className = "font-semibold";
+        awaySpan.textContent = awayName;
+        const awayImg = document.createElement("img");
+        awayImg.src = awayLogo;
+        awayImg.alt = awayName;
+        awayImg.className = "w-6 h-6 rounded-full border";
+        right.appendChild(awaySpan);
+        right.appendChild(awayImg);
+
+        teamsRow.appendChild(left);
+        teamsRow.appendChild(vsSpan);
+        teamsRow.appendChild(right);
+
+        topDiv.appendChild(leagueP);
+        topDiv.appendChild(dateP);
+        topDiv.appendChild(teamsRow);
+
+        // Oy verme satırı (ORTALANMIŞ)
+        const voteRow = document.createElement("div");
+        voteRow.className = "flex items-center justify-center gap-3 mt-2";
+
+        const homeInput = document.createElement("input");
+        homeInput.type = "number";
+        homeInput.placeholder = homeName;
+        homeInput.className = "home-score w-20 p-2 border rounded text-center";
+
+        const dash = document.createElement("span");
+        dash.className = "font-bold";
+        dash.textContent = "-";
+
+        const awayInput = document.createElement("input");
+        awayInput.type = "number";
+        awayInput.placeholder = awayName;
+        awayInput.className = "away-score w-20 p-2 border rounded text-center";
+
+        const voteBtn = document.createElement("button");
+        voteBtn.className = "vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600";
+        voteBtn.textContent = "Oy Ver";
+
+        voteRow.appendChild(homeInput);
+        voteRow.appendChild(dash);
+        voteRow.appendChild(awayInput);
+        voteRow.appendChild(voteBtn);
+
+        // Popüler tahmin (ortalı)
+        const popularP = document.createElement("p");
+        popularP.className = "text-sm text-gray-500 text-center";
+        popularP.textContent = `En Popüler Tahmin: ${popularText} (${voteCount} oy)`;
+
+        // Hepsini karta ekle
+        card.appendChild(topDiv);
+        card.appendChild(voteRow);
+        card.appendChild(popularP);
 
         matchesDiv.appendChild(card);
       }
@@ -173,55 +232,59 @@
     // İlk yükleme
     loadMatches();
 
-    // --- Oy verme işlemi ---
+    // Oy verme işlemi (event delegation)
     document.addEventListener("click", async (e) => {
-      if (e.target.closest(".vote-button")) {
-        const card = e.target.closest(".match-card");
-        const matchId = card.dataset.id;
-        const homeScore = card.querySelector(".home-score").value;
-        const awayScore = card.querySelector(".away-score").value;
+      const btn = e.target.closest(".vote-button");
+      if (!btn) return;
 
-        if (!homeScore || !awayScore) {
-          alert("Lütfen skor giriniz");
-          return;
-        }
+      // Bulunan card içinde inputları al
+      const card = btn.closest(".match-card");
+      const matchId = card.dataset.id;
+      const homeScore = card.querySelector(".home-score").value;
+      const awayScore = card.querySelector(".away-score").value;
 
-        const prediction = `${homeScore}-${awayScore}`;
+      if (!homeScore || !awayScore) {
+        alert("Lütfen skor giriniz");
+        return;
+      }
 
-        try {
-          const matchRef = doc(db, "matches", matchId);
-          const matchSnap = await getDoc(matchRef);
+      if (!currentUser) {
+        alert("Kullanıcı girişi bekleniyor. Birkaç saniye bekleyip tekrar deneyin.");
+        return;
+      }
 
-          if (matchSnap.exists()) {
-            await updateDoc(matchRef, { [`votes.${currentUser.uid}`]: prediction });
+      const prediction = `${homeScore}-${awayScore}`;
 
-            const updatedSnap = await getDoc(matchRef);
-            const votes = updatedSnap.data().votes || {};
-            const counts = {};
+      try {
+        const matchRef = doc(db, "matches", matchId);
+        const matchSnap = await getDoc(matchRef);
 
-            Object.values(votes).forEach((pred) => {
-              counts[pred] = (counts[pred] || 0) + 1;
-            });
+        if (matchSnap.exists()) {
+          // Kullanıcının oyunu kaydet
+          await updateDoc(matchRef, { [`votes.${currentUser.uid}`]: prediction });
 
-            let popular = null;
-            let maxCount = 0;
-            for (let [score, count] of Object.entries(counts)) {
-              if (count > maxCount) {
-                popular = score;
-                maxCount = count;
-              }
-            }
+          // Popüler tahmini hesapla
+          const updatedSnap = await getDoc(matchRef);
+          const votes = updatedSnap.data().votes || {};
+          const counts = {};
+          Object.values(votes).forEach(p => { counts[p] = (counts[p] || 0) + 1; });
 
-            await updateDoc(matchRef, { popularPrediction: popular, voteCount: maxCount });
-            alert("Oyun kaydedildi ✅");
-            loadMatches();
-          } else {
-            alert("Maç bulunamadı!");
+          let popular = null;
+          let maxCount = 0;
+          for (const [score, count] of Object.entries(counts)) {
+            if (count > maxCount) { popular = score; maxCount = count; }
           }
-        } catch (err) {
-          console.error("Oy kaydetme hatası:", err);
-          alert("Oy kaydedilemedi ❌");
+
+          await updateDoc(matchRef, { popularPrediction: popular, voteCount: maxCount });
+
+          alert("Oyun kaydedildi ✅");
+          loadMatches(); // ekranı yenile
+        } else {
+          alert("Maç bulunamadı!");
         }
+      } catch (err) {
+        console.error("Oy kaydetme hatası:", err);
+        alert("Oy kaydedilemedi ❌");
       }
     });
   </script>
