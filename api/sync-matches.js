@@ -1,65 +1,63 @@
+// ESM modül desteği için dynamic import kullan
 const admin = require("firebase-admin");
-const fetch = require("node-fetch");
+
+let fetchFn;
+(async () => {
+  fetchFn = (await import("node-fetch")).default;
+})();
 
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount),
   });
 }
 
 const db = admin.firestore();
 
-function parseEventDate(ev) {
-  try {
-    const datePart = ev.dateEvent || "";
-    const timePart = ev.strTime || "00:00:00";
-    const iso = `${datePart}T${timePart}Z`;
-    return admin.firestore.Timestamp.fromDate(new Date(iso));
-  } catch {
-    return admin.firestore.Timestamp.now();
-  }
-}
-
 module.exports = async (req, res) => {
   try {
-    if (req.query.key !== process.env.SECRET_KEY) {
-      return res.status(403).json({ ok: false, error: "Unauthorized" });
+    const { key } = req.query;
+    if (key !== process.env.SECRET_KEY) {
+      return res.status(403).json({ error: "Unauthorized" });
     }
 
-    const apiKey = process.env.THESPORTSDB_KEY;
-    const endpoint = `https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4339`;
+    if (!fetchFn) {
+      fetchFn = (await import("node-fetch")).default;
+    }
 
-    const response = await fetch(endpoint);
+    const thesportsdbKey = process.env.THESPORTSDB_KEY;
+    const url = `https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4339`;
+
+    console.log("Fetching from:", url);
+    const response = await fetchFn(url);
     const data = await response.json();
-    const events = data.events || [];
+
+    if (!data.events || !Array.isArray(data.events)) {
+      return res.status(500).json({ error: "Invalid API response" });
+    }
 
     let added = 0;
-    const batch = db.batch();
 
-    for (const ev of events) {
-      const docId = `ts_${ev.idEvent}`;
-      const docRef = db.collection("matches").doc(docId);
+    for (const ev of data.events) {
+      const matchId = ev.idEvent;
+      const ref = db.collection("matches").doc(matchId);
 
-      batch.set(
-        docRef,
-        {
-          home: ev.strHomeTeam,
-          away: ev.strAwayTeam,
-          date: parseEventDate(ev),
-          coverImage: ev.strThumb || null,
-          source: "thesportsdb",
-          sourceId: ev.idEvent
-        },
-        { merge: true }
-      );
+      const matchData = {
+        home: ev.strHomeTeam,
+        away: ev.strAwayTeam,
+        date: ev.dateEvent,
+        time: ev.strTime,
+        league: ev.strLeague,
+      };
+
+      await ref.set(matchData, { merge: true });
       added++;
     }
 
-    await batch.commit();
-    res.json({ ok: true, message: `${added} maç eklendi` });
+    return res.json({ ok: true, message: `${added} maç senkronize edildi.` });
   } catch (err) {
-    console.error("Hata:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    console.error("Sync error:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
