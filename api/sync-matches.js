@@ -1,6 +1,6 @@
-import admin from "firebase-admin";
+const admin = require("firebase-admin");
+const fetch = require("node-fetch");
 
-// Firebase Admin başlatma (Vercel ortamında)
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
   admin.initializeApp({
@@ -21,9 +21,8 @@ function parseEventDate(ev) {
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   try {
-    // Basit güvenlik: URL param key kontrolü
     if (req.query.key !== process.env.SECRET_KEY) {
       return res.status(403).json({ ok: false, error: "Unauthorized" });
     }
@@ -41,6 +40,7 @@ export default async function handler(req, res) {
     for (const ev of events) {
       const docId = `ts_${ev.idEvent}`;
       const docRef = db.collection("matches").doc(docId);
+
       batch.set(
         docRef,
         {
@@ -57,10 +57,9 @@ export default async function handler(req, res) {
     }
 
     await batch.commit();
-
     res.json({ ok: true, message: `${added} maç eklendi` });
   } catch (err) {
-    console.error(err);
+    console.error("Hata:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
-}
+};
