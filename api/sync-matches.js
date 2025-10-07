@@ -1,4 +1,4 @@
-// ESM modül desteği için dynamic import kullan
+// (Önceki require ve fetch initialization olduğu gibi kalsın)
 const admin = require("firebase-admin");
 
 let fetchFn;
@@ -43,29 +43,35 @@ module.exports = async (req, res) => {
       const matchId = ev.idEvent;
       const ref = db.collection("matches").doc(matchId);
 
-      // 🕓 Tarih ve saat kontrolü
-      const rawDate =
-        ev.dateEvent || ev.strTimestamp || ev.strDate || null;
-      const rawTime = ev.strTime || "";
-
-      // UTC tarih+saati birleşik ISO formata çevir
-      let isoDate = null;
-      if (rawDate) {
-        try {
-          isoDate = new Date(`${rawDate}T${rawTime}`).toISOString();
-        } catch {
-          isoDate = rawDate;
-        }
+      // 1) Tarih/parsing: öncelik strTimestamp, sonra dateEvent+strTime
+      let dateObj = null;
+      if (ev.strTimestamp) {
+        // örn "2025-10-18T17:00:00"
+        const d = new Date(ev.strTimestamp);
+        if (!isNaN(d)) dateObj = d;
       }
+      if (!dateObj && ev.dateEvent) {
+        const timePart = ev.strTime || "00:00:00";
+        const iso = `${ev.dateEvent}T${timePart}`; // no timezone, treated consistently by Date
+        const d = new Date(iso);
+        if (!isNaN(d)) dateObj = d;
+      }
+
+      // 2) Firestore Timestamp (null ise yazma veya null bırak)
+      const dateTimestamp = dateObj ? admin.firestore.Timestamp.fromDate(dateObj) : null;
 
       const matchData = {
         home: ev.strHomeTeam || "Bilinmiyor",
         away: ev.strAwayTeam || "Bilinmiyor",
-        date: isoDate,
-        time: rawTime,
-        league: ev.strLeague || "Bilinmiyor",
+        date: dateTimestamp,          // Firestore Timestamp veya null
+        time: ev.strTime || null,
+        league: ev.strLeague || null,
+        coverImage: ev.strThumb || null,
+        source: "thesportsdb",
+        sourceId: ev.idEvent
       };
 
+      // merge: true -> mevcut votes vb. korunur
       await ref.set(matchData, { merge: true });
       added++;
     }
