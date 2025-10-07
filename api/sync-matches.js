@@ -44,20 +44,26 @@ module.exports = async (req, res) => {
       if (!data.events || !Array.isArray(data.events)) continue;
 
       for (const ev of data.events) {
-        const ref = db.collection("matches").doc(ev.idEvent);
-        const date = ev.strTimestamp || ev.dateEvent;
+        const matchId = ev.idEvent;
+        const ref = db.collection("matches").doc(matchId);
 
-   const matchData = {
-  home: ev.strHomeTeam,
-  away: ev.strAwayTeam,
-  homeLogo: ev.strHomeTeamBadge || "",
-  awayLogo: ev.strAwayTeamBadge || "",
-  date: ev.dateEvent,
-  time: ev.strTime,
-  league: ev.strLeague,
-};
+        const matchData = {
+          home: ev.strHomeTeam || "Bilinmiyor",
+          away: ev.strAwayTeam || "Bilinmiyor",
+          homeLogo:
+            ev.strHomeTeamBadge ||
+            `https://placehold.co/40x40?text=${encodeURIComponent(ev.strHomeTeam || "H")}`,
+          awayLogo:
+            ev.strAwayTeamBadge ||
+            `https://placehold.co/40x40?text=${encodeURIComponent(ev.strAwayTeam || "A")}`,
+          date: ev.dateEvent || null,
+          time: ev.strTime || null,
+          league: ev.strLeague || league.name,
+          updatedAt: new Date().toISOString(),
+        };
 
-        await ref.set(matchData, { merge: true });
+        // merge: false → eski verileri tamamen yeniler
+        await ref.set(matchData, { merge: false });
         totalAdded++;
       }
     }
