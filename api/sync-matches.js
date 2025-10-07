@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
       fetchFn = (await import("node-fetch")).default;
     }
 
-    const thesportsdbKey = process.env.THESPORTSDB_KEY;
+    const thesportsdbKey = process.env.THESPORTSDB_KEY || "123";
     const url = `https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4339`;
 
     console.log("Fetching from:", url);
@@ -43,12 +43,27 @@ module.exports = async (req, res) => {
       const matchId = ev.idEvent;
       const ref = db.collection("matches").doc(matchId);
 
+      // 🕓 Tarih ve saat kontrolü
+      const rawDate =
+        ev.dateEvent || ev.strTimestamp || ev.strDate || null;
+      const rawTime = ev.strTime || "";
+
+      // UTC tarih+saati birleşik ISO formata çevir
+      let isoDate = null;
+      if (rawDate) {
+        try {
+          isoDate = new Date(`${rawDate}T${rawTime}`).toISOString();
+        } catch {
+          isoDate = rawDate;
+        }
+      }
+
       const matchData = {
-        home: ev.strHomeTeam,
-        away: ev.strAwayTeam,
-        date: ev.dateEvent,
-        time: ev.strTime,
-        league: ev.strLeague,
+        home: ev.strHomeTeam || "Bilinmiyor",
+        away: ev.strAwayTeam || "Bilinmiyor",
+        date: isoDate,
+        time: rawTime,
+        league: ev.strLeague || "Bilinmiyor",
       };
 
       await ref.set(matchData, { merge: true });
