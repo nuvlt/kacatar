@@ -47,15 +47,15 @@ module.exports = async (req, res) => {
         const ref = db.collection("matches").doc(ev.idEvent);
         const date = ev.strTimestamp || ev.dateEvent;
 
-        const matchData = {
-          home: ev.strHomeTeam,
-          away: ev.strAwayTeam,
-          date: date || null,
-          league: ev.strLeague,
-          homeLogo: ev.strHomeTeamBadge || null,
-          awayLogo: ev.strAwayTeamBadge || null,
-          stadium: ev.strVenue || null,
-        };
+   const matchData = {
+  home: ev.strHomeTeam,
+  away: ev.strAwayTeam,
+  homeLogo: ev.strHomeTeamBadge || "",
+  awayLogo: ev.strAwayTeamBadge || "",
+  date: ev.dateEvent,
+  time: ev.strTime,
+  league: ev.strLeague,
+};
 
         await ref.set(matchData, { merge: true });
         totalAdded++;
