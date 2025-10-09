@@ -26,9 +26,9 @@ module.exports = async (req, res) => {
     const apiKey = process.env.API_FOOTBALL_KEY;
     const leagueId = 203; // Türkiye Süper Lig
     const season = 2025;
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD formatında bugün
 
-    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&date=${today}`;
+    // ✅ "next=10" ile sonraki 10 maçı al
+    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&next=10`;
 
     console.log("Fetching:", url);
 
