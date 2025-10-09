@@ -23,14 +23,17 @@ module.exports = async (req, res) => {
 
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
 
-    // ✅ Türkiye Süper Lig (doğru ID ve sezon)
-    const leagueId = 203;
-    const season = 2025;
     const apiKey = process.env.API_FOOTBALL_KEY;
+    const leagueId = 203; // Süper Lig
+    const season = 2025;
 
-    // ❗ next=50 -> yaklaşan 50 maçı getirir (ücretsiz planda çalışır)
-    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&next=50`;
+    // 🔹 URLSearchParams ile parametreleri güvenli oluştur
+    const params = new URLSearchParams({
+      league: leagueId,
+      season: season,
+    });
 
+    const url = `https://v3.football.api-sports.io/fixtures?${params.toString()}`;
     console.log("Fetching:", url);
 
     const response = await fetchFn(url, {
@@ -51,8 +54,6 @@ module.exports = async (req, res) => {
       const league = ev.league;
       const teams = ev.teams;
 
-      if (!fixture || !teams) continue;
-
       const ref = db.collection("matches").doc(String(fixture.id));
 
       const matchData = {
@@ -61,21 +62,15 @@ module.exports = async (req, res) => {
         homeLogo: teams.home.logo || "",
         awayLogo: teams.away.logo || "",
         date: fixture.date,
+        time: new Date(fixture.date).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
         league: league.name,
-        time: new Date(fixture.date).toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
       };
 
       await ref.set(matchData, { merge: true });
       totalAdded++;
     }
 
-    return res.json({
-      ok: true,
-      message: `${totalAdded} Süper Lig maçı senkronize edildi.`,
-    });
+    return res.json({ ok: true, message: `${totalAdded} Süper Lig maçı senkronize edildi.` });
   } catch (err) {
     console.error("Sync error:", err);
     return res.status(500).json({ error: err.message });
