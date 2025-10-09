@@ -26,11 +26,9 @@ module.exports = async (req, res) => {
     const apiKey = process.env.API_FOOTBALL_KEY;
     const leagueId = 203; // Türkiye Süper Lig
     const season = 2025;
-    const today = new Date();
-    const from = today.toISOString().split("T")[0];
-    const to = new Date(today.getTime() + 7 * 86400000).toISOString().split("T")[0]; // 1 hafta sonrası
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD formatında bugün
 
-    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&from=${from}&to=${to}`;
+    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&date=${today}`;
 
     console.log("Fetching:", url);
 
@@ -61,7 +59,10 @@ module.exports = async (req, res) => {
         awayLogo: teams.away.logo || "",
         date: fixture.date,
         league: league.name,
-        time: new Date(fixture.date).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+        time: new Date(fixture.date).toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       };
 
       await ref.set(matchData, { merge: true });
