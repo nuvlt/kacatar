@@ -27,20 +27,18 @@ module.exports = async (req, res) => {
     const leagueId = 203; // Süper Lig
     const season = 2025;
 
-    // 🔹 URLSearchParams ile parametreleri güvenli oluştur
-    const params = new URLSearchParams({
-      league: leagueId,
-      season: season,
-    });
+    // 🔹 URL doğrudan, encode etmeden yazılıyor:
+    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}`;
 
-    const url = `https://v3.football.api-sports.io/fixtures?${params.toString()}`;
-    console.log("Fetching:", url);
+    console.log("Fetching URL:", url);
 
     const response = await fetchFn(url, {
       headers: { "x-apisports-key": apiKey },
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    console.log("Raw response:", text.slice(0, 500)); // ilk 500 karakteri logla
+    const data = JSON.parse(text);
 
     if (!data.response || !Array.isArray(data.response)) {
       console.error("Invalid API response:", data);
@@ -62,7 +60,10 @@ module.exports = async (req, res) => {
         homeLogo: teams.home.logo || "",
         awayLogo: teams.away.logo || "",
         date: fixture.date,
-        time: new Date(fixture.date).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+        time: new Date(fixture.date).toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         league: league.name,
       };
 
