@@ -14,9 +14,14 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-const LEAGUES = ["PL", "PD", "SA", "BL1", "FL1"]; // Premier, LaLiga, SerieA, Bundesliga, Ligue 1
+const LEAGUE_IDS = {
+  PL: 2021, // Premier League
+  PD: 2014, // La Liga
+  SA: 2019, // Serie A
+  BL1: 2002, // Bundesliga
+  FL1: 2015, // Ligue 1
+};
 
-// basit logo önbellek
 const logoCache = {};
 
 async function getTeamLogo(teamName) {
@@ -41,47 +46,41 @@ module.exports = async (req, res) => {
     }
 
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
-
     const apiKey = process.env.FOOTBALL_DATA_KEY;
 
-    // UTC bazlı tarih aralığı
+    // 🔹 3 günlük tarih aralığı (UTC)
     const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const nowUTC = now.toISOString();
-    const nextWeekUTC = nextWeek.toISOString();
+    const next3 = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const dateFrom = now.toISOString().split("T")[0];
+    const dateTo = next3.toISOString().split("T")[0];
 
-    console.log("🧹 Tüm eski maçlar siliniyor...");
-    const old = await db.collection("matches").get();
-    for (const doc of old.docs) await doc.ref.delete();
+    console.log(`🧹 Eski maçlar siliniyor...`);
+    const oldMatches = await db.collection("matches").get();
+    for (const doc of oldMatches.docs) await doc.ref.delete();
 
     let totalAdded = 0;
 
-    for (const code of LEAGUES) {
-      const url = `https://api.football-data.org/v4/competitions/${code}/matches?status=SCHEDULED`;
-      console.log(`⚽ Fetching ${code}...`);
+    for (const [code, id] of Object.entries(LEAGUE_IDS)) {
+      const url = `https://api.football-data.org/v4/matches?competitions=${code}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
+      console.log(`⚽ Fetching ${code}: ${url}`);
 
-      const resp = await fetchFn(url, {
-        headers: { "X-Auth-Token": apiKey },
-      });
+      const resp = await fetchFn(url, { headers: { "X-Auth-Token": apiKey } });
       const data = await resp.json();
 
-      if (!data.matches || !Array.isArray(data.matches)) continue;
+      if (!data.matches || !Array.isArray(data.matches)) {
+        console.log(`❌ ${code} geçersiz yanıt`);
+        continue;
+      }
 
-      // 🔹 Tarih filtresi (UTC bazlı karşılaştırma)
-      const filtered = data.matches.filter((m) => {
-        const matchDate = new Date(m.utcDate);
-        return matchDate >= now && matchDate <= nextWeek;
-      });
+      console.log(`✅ ${code}: ${data.matches.length} maç bulundu`);
 
-      console.log(`➡️ ${code}: ${filtered.length} maç bulundu (haftalık)`);
-
-      for (const m of filtered) {
+      for (const m of data.matches) {
         const ref = db.collection("matches").doc(String(m.id));
         const homeLogo = await getTeamLogo(m.homeTeam.name);
         const awayLogo = await getTeamLogo(m.awayTeam.name);
 
         const matchData = {
-          league: data.competition.name,
+          league: m.competition.name,
           home: m.homeTeam.name,
           away: m.awayTeam.name,
           homeLogo,
@@ -98,8 +97,10 @@ module.exports = async (req, res) => {
       }
     }
 
-    console.log(`✅ ${totalAdded} maç eklendi (haftalık).`);
-    return res.json({ ok: true, message: `${totalAdded} haftalık maç senkronize edildi.` });
+    return res.json({
+      ok: true,
+      message: `${totalAdded} maç senkronize edildi (önümüzdeki 3 gün)`,
+    });
   } catch (err) {
     console.error("Sync error:", err);
     return res.status(500).json({ error: err.message });
