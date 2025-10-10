@@ -14,7 +14,8 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-const LEAGUE_CODES = ["PL", "PD", "SA", "BL1", "FL1"]; // Premier, La Liga, Serie A, Bundesliga, Ligue 1
+// Yalnızca 5 büyük lig (Football-Data “code” değerleri)
+const LEAGUE_CODES = ["PL", "PD", "SA", "BL1", "FL1"];
 const logoCache = {};
 
 async function getTeamLogo(teamName) {
@@ -39,17 +40,16 @@ module.exports = async (req, res) => {
     }
 
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
-
     const apiKey = process.env.FOOTBALL_DATA_KEY;
 
-    // 🔹 tarih filtresi: bugünden +3 gün
-    const now = new Date();
-    const from = now.toISOString().split("T")[0];
-    const to = new Date(now.getTime() + 3 * 86400000).toISOString().split("T")[0];
-
-    console.log(`Fetching weekly matches: ${from} → ${to}`);
+    // 🔹 Sadece 7 gün
+    const today = new Date();
+    const from = today.toISOString().split("T")[0];
+    const to = new Date(today.getTime() + 7 * 86400000).toISOString().split("T")[0];
 
     const url = `https://api.football-data.org/v4/matches?dateFrom=${from}&dateTo=${to}`;
+    console.log("Fetching weekly matches:", url);
+
     const response = await fetchFn(url, {
       headers: { "X-Auth-Token": apiKey },
     });
@@ -60,29 +60,30 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: "Invalid API response" });
     }
 
-    // 🧹 Önce tüm eski maçları sil
+    // 🧹 Eski maçları sil
     const oldMatches = await db.collection("matches").get();
     for (const doc of oldMatches.docs) await doc.ref.delete();
 
-    let totalAdded = 0;
-
-    // 🔹 yalnızca 5 ligdeki maçları al
+    // 🔹 5 büyük lig dışındakileri filtrele
     const filtered = data.matches.filter((m) =>
       LEAGUE_CODES.includes(m.competition.code)
     );
 
+    let added = 0;
+
     for (const m of filtered) {
       const ref = db.collection("matches").doc(String(m.id));
+
       const homeLogo = await getTeamLogo(m.homeTeam.name);
       const awayLogo = await getTeamLogo(m.awayTeam.name);
 
       const matchData = {
-        league: m.competition.name,
         home: m.homeTeam.name,
         away: m.awayTeam.name,
         homeLogo,
         awayLogo,
         date: m.utcDate,
+        league: m.competition.name,
         time: new Date(m.utcDate).toLocaleTimeString("tr-TR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -90,12 +91,12 @@ module.exports = async (req, res) => {
       };
 
       await ref.set(matchData, { merge: true });
-      totalAdded++;
+      added++;
     }
 
     return res.json({
       ok: true,
-      message: `${totalAdded} maç senkronize edildi (önümüzdeki 3 gün)`,
+      message: `${added} maç senkronize edildi (önümüzdeki 7 gün)`,
     });
   } catch (err) {
     console.error("Sync error:", err);
