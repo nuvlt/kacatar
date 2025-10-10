@@ -23,55 +23,47 @@ module.exports = async (req, res) => {
 
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
 
-    const apiKey = process.env.API_FOOTBALL_KEY;
-    const leagueId = 203; // Süper Lig
-    const season = 2025;
+    const apiKey = process.env.FOOTBALL_DATA_KEY;
 
-    // 🔹 URL doğrudan, encode etmeden yazılıyor:
-    const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}`;
-
-    console.log("Fetching URL:", url);
-
-    const response = await fetchFn(url, {
-      headers: { "x-apisports-key": apiKey },
-    });
-
-    const text = await response.text();
-    console.log("Raw response:", text.slice(0, 500)); // ilk 500 karakteri logla
-    const data = JSON.parse(text);
-
-    if (!data.response || !Array.isArray(data.response)) {
-      console.error("Invalid API response:", data);
-      return res.status(500).json({ error: "Invalid API response" });
-    }
+    // 5 büyük lig
+    const leagues = ["PL", "PD", "SA", "BL1", "FL1"];
 
     let totalAdded = 0;
 
-    for (const ev of data.response) {
-      const fixture = ev.fixture;
-      const league = ev.league;
-      const teams = ev.teams;
+    for (const code of leagues) {
+      const url = `https://api.football-data.org/v4/competitions/${code}/matches?status=SCHEDULED`;
+      console.log(`Fetching ${code}...`);
 
-      const ref = db.collection("matches").doc(String(fixture.id));
+      const response = await fetchFn(url, {
+        headers: { "X-Auth-Token": apiKey },
+      });
 
-      const matchData = {
-        home: teams.home.name,
-        away: teams.away.name,
-        homeLogo: teams.home.logo || "",
-        awayLogo: teams.away.logo || "",
-        date: fixture.date,
-        time: new Date(fixture.date).toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        league: league.name,
-      };
+      const data = await response.json();
 
-      await ref.set(matchData, { merge: true });
-      totalAdded++;
+      if (!data.matches || !Array.isArray(data.matches)) continue;
+
+      for (const m of data.matches) {
+        const ref = db.collection("matches").doc(String(m.id));
+
+        const matchData = {
+          league: data.competition.name,
+          home: m.homeTeam.name,
+          away: m.awayTeam.name,
+          date: m.utcDate,
+          time: new Date(m.utcDate).toLocaleTimeString("tr-TR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          homeLogo: "",
+          awayLogo: "",
+        };
+
+        await ref.set(matchData, { merge: true });
+        totalAdded++;
+      }
     }
 
-    return res.json({ ok: true, message: `${totalAdded} Süper Lig maçı senkronize edildi.` });
+    return res.json({ ok: true, message: `${totalAdded} maç senkronize edildi.` });
   } catch (err) {
     console.error("Sync error:", err);
     return res.status(500).json({ error: err.message });
