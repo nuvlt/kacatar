@@ -1,12 +1,10 @@
 const admin = require("firebase-admin");
 
-// fetch dynamic import
 let fetchFn;
 (async () => {
   fetchFn = (await import("node-fetch")).default;
 })();
 
-// Firebase init
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
@@ -16,7 +14,9 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Simple logo cache (memory)
+const LEAGUES = ["PL", "PD", "SA", "BL1", "FL1"]; // Premier, LaLiga, SerieA, Bundesliga, Ligue 1
+
+// basit logo önbellek
 const logoCache = {};
 
 async function getTeamLogo(teamName) {
@@ -28,8 +28,7 @@ async function getTeamLogo(teamName) {
     const logo = data.teams?.[0]?.strTeamBadge || "";
     logoCache[teamName] = logo;
     return logo;
-  } catch (err) {
-    console.error("Logo fetch error:", teamName, err);
+  } catch {
     return "";
   }
 }
@@ -44,41 +43,40 @@ module.exports = async (req, res) => {
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
 
     const apiKey = process.env.FOOTBALL_DATA_KEY;
-    const leagues = ["PL", "PD", "SA", "BL1", "FL1"]; // Premier, LaLiga, SerieA, Bundesliga, Ligue1
 
+    // UTC bazlı tarih aralığı
     const now = new Date();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const nowUTC = now.toISOString();
+    const nextWeekUTC = nextWeek.toISOString();
 
-    console.log("🧹 Deleting old matches...");
-    const matchesRef = db.collection("matches");
-    const oldMatches = await matchesRef.get();
-    for (const doc of oldMatches.docs) {
-      await doc.ref.delete();
-    }
-    console.log("✅ Old matches deleted.");
+    console.log("🧹 Tüm eski maçlar siliniyor...");
+    const old = await db.collection("matches").get();
+    for (const doc of old.docs) await doc.ref.delete();
 
     let totalAdded = 0;
 
-    for (const code of leagues) {
+    for (const code of LEAGUES) {
       const url = `https://api.football-data.org/v4/competitions/${code}/matches?status=SCHEDULED`;
       console.log(`⚽ Fetching ${code}...`);
 
-      const response = await fetchFn(url, {
+      const resp = await fetchFn(url, {
         headers: { "X-Auth-Token": apiKey },
       });
-
-      const data = await response.json();
+      const data = await resp.json();
 
       if (!data.matches || !Array.isArray(data.matches)) continue;
 
-      for (const m of data.matches) {
+      // 🔹 Tarih filtresi (UTC bazlı karşılaştırma)
+      const filtered = data.matches.filter((m) => {
         const matchDate = new Date(m.utcDate);
+        return matchDate >= now && matchDate <= nextWeek;
+      });
 
-        // ✅ UTC karşılaştırması (sadece bu haftayı al)
-        if (matchDate.getTime() < now.getTime() || matchDate.getTime() > nextWeek.getTime()) continue;
+      console.log(`➡️ ${code}: ${filtered.length} maç bulundu (haftalık)`);
 
+      for (const m of filtered) {
         const ref = db.collection("matches").doc(String(m.id));
-
         const homeLogo = await getTeamLogo(m.homeTeam.name);
         const awayLogo = await getTeamLogo(m.awayTeam.name);
 
@@ -89,7 +87,7 @@ module.exports = async (req, res) => {
           homeLogo,
           awayLogo,
           date: m.utcDate,
-          time: matchDate.toLocaleTimeString("tr-TR", {
+          time: new Date(m.utcDate).toLocaleTimeString("tr-TR", {
             hour: "2-digit",
             minute: "2-digit",
           }),
@@ -100,7 +98,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    console.log(`✅ ${totalAdded} matches added this week.`);
+    console.log(`✅ ${totalAdded} maç eklendi (haftalık).`);
     return res.json({ ok: true, message: `${totalAdded} haftalık maç senkronize edildi.` });
   } catch (err) {
     console.error("Sync error:", err);
