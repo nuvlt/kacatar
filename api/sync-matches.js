@@ -1,6 +1,6 @@
 const admin = require("firebase-admin");
 
-// fetch için dynamic import
+// fetch dynamic import
 let fetchFn;
 (async () => {
   fetchFn = (await import("node-fetch")).default;
@@ -16,7 +16,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Basit logo cache
+// Simple logo cache (memory)
 const logoCache = {};
 
 async function getTeamLogo(teamName) {
@@ -44,9 +44,10 @@ module.exports = async (req, res) => {
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
 
     const apiKey = process.env.FOOTBALL_DATA_KEY;
-    const leagues = ["PL", "PD", "SA", "BL1", "FL1"]; // 5 büyük lig
+    const leagues = ["PL", "PD", "SA", "BL1", "FL1"]; // Premier, LaLiga, SerieA, Bundesliga, Ligue1
+
     const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 86400000);
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     console.log("🧹 Deleting old matches...");
     const matchesRef = db.collection("matches");
@@ -72,7 +73,9 @@ module.exports = async (req, res) => {
 
       for (const m of data.matches) {
         const matchDate = new Date(m.utcDate);
-        if (matchDate < now || matchDate > nextWeek) continue; // sadece bu hafta
+
+        // ✅ UTC karşılaştırması (sadece bu haftayı al)
+        if (matchDate.getTime() < now.getTime() || matchDate.getTime() > nextWeek.getTime()) continue;
 
         const ref = db.collection("matches").doc(String(m.id));
 
@@ -97,6 +100,7 @@ module.exports = async (req, res) => {
       }
     }
 
+    console.log(`✅ ${totalAdded} matches added this week.`);
     return res.json({ ok: true, message: `${totalAdded} haftalık maç senkronize edildi.` });
   } catch (err) {
     console.error("Sync error:", err);
