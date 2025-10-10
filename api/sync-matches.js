@@ -24,9 +24,9 @@ module.exports = async (req, res) => {
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
 
     const apiKey = process.env.FOOTBALL_DATA_KEY;
-
-    // 5 büyük lig
     const leagues = ["PL", "PD", "SA", "BL1", "FL1"];
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 86400000);
 
     let totalAdded = 0;
 
@@ -43,6 +43,9 @@ module.exports = async (req, res) => {
       if (!data.matches || !Array.isArray(data.matches)) continue;
 
       for (const m of data.matches) {
+        const matchDate = new Date(m.utcDate);
+        if (matchDate < now || matchDate > nextWeek) continue; // 🔥 sadece bu hafta
+
         const ref = db.collection("matches").doc(String(m.id));
 
         const matchData = {
@@ -50,7 +53,7 @@ module.exports = async (req, res) => {
           home: m.homeTeam.name,
           away: m.awayTeam.name,
           date: m.utcDate,
-          time: new Date(m.utcDate).toLocaleTimeString("tr-TR", {
+          time: matchDate.toLocaleTimeString("tr-TR", {
             hour: "2-digit",
             minute: "2-digit",
           }),
@@ -63,7 +66,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    return res.json({ ok: true, message: `${totalAdded} maç senkronize edildi.` });
+    return res.json({ ok: true, message: `${totalAdded} haftalık maç senkronize edildi.` });
   } catch (err) {
     console.error("Sync error:", err);
     return res.status(500).json({ error: err.message });
