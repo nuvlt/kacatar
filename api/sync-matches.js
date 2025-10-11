@@ -14,24 +14,39 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+function normalizeTeamName(name) {
+  return name
+    .replace(/ FC| CF| AC| SC| AFC| C\.F\.| S\.C\.| F\.C\.| Club/gi, "")
+    .replace(/[^a-zA-Z0-9\s]/g, "")
+    .trim();
+}
+
 async function getTeamLogo(team) {
-  // 1️⃣ Football-data logosu varsa onu al
   if (team?.crest) return team.crest;
 
-  // 2️⃣ TheSportsDB fallback
-  try {
-    if (!fetchFn) fetchFn = (await import("node-fetch")).default;
-    const key = process.env.THESPORTSDB_KEY || "3"; // public key fallback
-    const encoded = encodeURIComponent(team.name);
-    const resp = await fetchFn(
-      `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php?t=${encoded}`
-    );
-    const data = await resp.json();
-    return data?.teams?.[0]?.strTeamBadge || "";
-  } catch (e) {
-    console.warn(`Logo bulunamadı: ${team.name}`);
-    return "";
+  const key = process.env.THESPORTSDB_KEY || "3";
+  const base = `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php`;
+
+  const variants = [
+    team.name,
+    normalizeTeamName(team.name),
+    normalizeTeamName(team.name).split(" ")[0],
+  ];
+
+  for (const name of variants) {
+    try {
+      const resp = await fetchFn(`${base}?t=${encodeURIComponent(name)}`);
+      const data = await resp.json();
+      if (data?.teams?.[0]?.strTeamBadge) {
+        console.log(`✅ Logo bulundu: ${team.name} → ${data.teams[0].strTeamBadge}`);
+        return data.teams[0].strTeamBadge;
+      }
+    } catch (e) {
+      console.warn(`⚠️ Logo bulunamadı: ${team.name}`);
+    }
   }
+
+  return "";
 }
 
 async function deleteOldMatches() {
@@ -59,11 +74,7 @@ module.exports = async (req, res) => {
     if (key !== process.env.SECRET_KEY)
       return res.status(403).json({ error: "Unauthorized" });
 
-    if (!fetchFn) fetchFn = (await import("node-fetch")).default;
-
-    // 🔹 5 büyük lig (Premier League, La Liga, Serie A, Bundesliga, Ligue 1)
     const competitions = ["PL", "PD", "SA", "BL1", "FL1"];
-
     const today = new Date();
     const from = today.toISOString().split("T")[0];
     const to = new Date(today.getTime() + 5 * 86400000)
@@ -75,23 +86,17 @@ module.exports = async (req, res) => {
     let totalAdded = 0;
     let allMatches = [];
 
-    // 🔹 Her lig için veri çek
     for (const comp of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${from}&dateTo=${to}`;
       const response = await fetchFn(url, {
         headers: { "X-Auth-Token": apiKey },
       });
       const data = await response.json();
-
-      if (Array.isArray(data.matches)) {
-        allMatches = allMatches.concat(data.matches);
-      }
+      if (Array.isArray(data.matches)) allMatches = allMatches.concat(data.matches);
     }
 
-    // 🔹 Önce eski maçları sil
     const deletedCount = await deleteOldMatches();
 
-    // 🔹 Yeni maçları ekle
     for (const match of allMatches) {
       const homeLogo = await getTeamLogo(match.homeTeam);
       const awayLogo = await getTeamLogo(match.awayTeam);
