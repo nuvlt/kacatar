@@ -1,8 +1,5 @@
 const admin = require("firebase-admin");
 
-// ✅ fetch native (Vercel destekliyor)
-const fetchFn = globalThis.fetch;
-
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
@@ -12,22 +9,23 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// --- Yardımcı: takım ismini normalize et
+// -----------------------
+// Helper: normalize name
+// -----------------------
 function normalizeTeamName(name) {
   return name
-    ?.replace(/ FC| CF| AC| SC| AFC| C\.F\.| S\.C\.| F\.C\.| Club/gi, "")
+    ?.replace(/\b(FC|CF|AC|SC|AFC|C\.F\.|S\.C\.|F\.C\.|Club)\b/gi, "")
     ?.replace(/[^a-zA-Z0-9\s]/g, "")
     ?.trim();
 }
 
-// --- TheSportsDB'den logo çek
+// -----------------------
+// Fetch logo from TheSportsDB
+// -----------------------
 async function getTeamLogo(team) {
-  if (!team || !team.name) {
-    console.log("⚠️ Takım bilgisi eksik:", team);
-    return "";
-  }
+  if (!team?.name) return "";
 
-  // Football-Data API’den gelen crest varsa onu kullan
+  // 1️⃣ Football-Data logosu varsa direkt dön
   if (team.crest) {
     console.log(`✅ FootballData logosu var: ${team.name}`);
     return team.crest;
@@ -36,34 +34,36 @@ async function getTeamLogo(team) {
   const key = process.env.THESPORTSDB_KEY || "3";
   const base = `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php`;
 
-  const variants = [
+  const candidates = [
     team.name,
     normalizeTeamName(team.name),
     normalizeTeamName(team.name)?.split(" ")[0],
   ].filter(Boolean);
 
-  for (const name of variants) {
+  for (const name of candidates) {
+    const url = `${base}?t=${encodeURIComponent(name)}`;
+    console.log(`🎯 Logo sorgulanıyor: ${url}`);
     try {
-      const url = `${base}?t=${encodeURIComponent(name)}`;
-      console.log("🎯 Logo sorgulanıyor:", url);
-      const resp = await fetchFn(url);
+      const resp = await fetch(url);
       const data = await resp.json();
 
-      if (data?.teams?.[0]?.strTeamBadge) {
+      if (data?.teams?.length && data.teams[0].strTeamBadge) {
         const logo = data.teams[0].strTeamBadge;
         console.log(`✅ Logo bulundu: ${team.name} → ${logo}`);
         return logo;
       }
-    } catch (e) {
-      console.log("❌ Logo ararken hata:", e.message);
+    } catch (err) {
+      console.log(`❌ Logo hatası (${team.name}): ${err.message}`);
     }
   }
 
-  console.log("❌ Logo bulunamadı:", team.name);
+  console.log(`⚠️ Logo bulunamadı: ${team.name}`);
   return "";
 }
 
-// --- Eski maçları sil
+// -----------------------
+// Eski maçları sil
+// -----------------------
 async function deleteOldMatches() {
   const now = new Date();
   const snapshot = await db.collection("matches").get();
@@ -83,6 +83,9 @@ async function deleteOldMatches() {
   return deleted;
 }
 
+// -----------------------
+// Ana fonksiyon
+// -----------------------
 module.exports = async (req, res) => {
   try {
     const { key } = req.query;
@@ -104,7 +107,7 @@ module.exports = async (req, res) => {
     for (const comp of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${from}&dateTo=${to}`;
       console.log("📡 Fetch:", url);
-      const response = await fetchFn(url, {
+      const response = await fetch(url, {
         headers: { "X-Auth-Token": apiKey },
       });
       const data = await response.json();
@@ -113,25 +116,35 @@ module.exports = async (req, res) => {
 
     const deletedCount = await deleteOldMatches();
 
+    // 🔥 LOGO TEST — ilk 5 maçta logoları özel olarak gösterelim
+    for (const match of allMatches.slice(0, 5)) {
+      console.log(`🎮 Test maç: ${match.homeTeam.name} vs ${match.awayTeam.name}`);
+      const homeLogo = await getTeamLogo(match.homeTeam);
+      const awayLogo = await getTeamLogo(match.awayTeam);
+      console.log("🏁 HOME:", homeLogo, "AWAY:", awayLogo);
+    }
+
+    // 🔁 Tüm maçlar Firestore’a yazılsın
     for (const match of allMatches) {
       const homeLogo = await getTeamLogo(match.homeTeam);
       const awayLogo = await getTeamLogo(match.awayTeam);
 
       const ref = db.collection("matches").doc(String(match.id));
-      const matchData = {
-        home: match.homeTeam.name,
-        away: match.awayTeam.name,
-        homeLogo,
-        awayLogo,
-        date: match.utcDate,
-        league: match.competition.name,
-        time: new Date(match.utcDate).toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-
-      await ref.set(matchData, { merge: true });
+      await ref.set(
+        {
+          home: match.homeTeam.name,
+          away: match.awayTeam.name,
+          homeLogo,
+          awayLogo,
+          date: match.utcDate,
+          league: match.competition.name,
+          time: new Date(match.utcDate).toLocaleTimeString("tr-TR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        },
+        { merge: true }
+      );
       totalAdded++;
     }
 
@@ -140,7 +153,7 @@ module.exports = async (req, res) => {
       message: `${totalAdded} maç senkronize edildi (${deletedCount} eski maç silindi).`,
     });
   } catch (err) {
-    console.error("Sync error:", err);
+    console.error("🔥 Sync error:", err);
     return res.status(500).json({ error: err.message });
   }
 };
