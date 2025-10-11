@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const axios = require("axios"); // ✅ fetch yerine axios
 
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -25,7 +26,6 @@ function normalizeTeamName(name) {
 async function getTeamLogo(team) {
   if (!team?.name) return "";
 
-  // 1️⃣ Football-Data logosu varsa direkt dön
   if (team.crest) {
     console.log(`✅ FootballData logosu var: ${team.name}`);
     return team.crest;
@@ -44,9 +44,8 @@ async function getTeamLogo(team) {
     const url = `${base}?t=${encodeURIComponent(name)}`;
     console.log(`🎯 Logo sorgulanıyor: ${url}`);
     try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-
+      const resp = await axios.get(url, { timeout: 8000 });
+      const data = resp.data;
       if (data?.teams?.length && data.teams[0].strTeamBadge) {
         const logo = data.teams[0].strTeamBadge;
         console.log(`✅ Logo bulundu: ${team.name} → ${logo}`);
@@ -107,24 +106,17 @@ module.exports = async (req, res) => {
     for (const comp of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${from}&dateTo=${to}`;
       console.log("📡 Fetch:", url);
-      const response = await fetch(url, {
+      const response = await axios.get(url, {
         headers: { "X-Auth-Token": apiKey },
+        timeout: 10000,
       });
-      const data = await response.json();
+      const data = response.data;
       if (Array.isArray(data.matches)) allMatches = allMatches.concat(data.matches);
     }
 
     const deletedCount = await deleteOldMatches();
 
-    // 🔥 LOGO TEST — ilk 5 maçta logoları özel olarak gösterelim
-    for (const match of allMatches.slice(0, 5)) {
-      console.log(`🎮 Test maç: ${match.homeTeam.name} vs ${match.awayTeam.name}`);
-      const homeLogo = await getTeamLogo(match.homeTeam);
-      const awayLogo = await getTeamLogo(match.awayTeam);
-      console.log("🏁 HOME:", homeLogo, "AWAY:", awayLogo);
-    }
-
-    // 🔁 Tüm maçlar Firestore’a yazılsın
+    // 🔁 Maçları Firestore'a yaz
     for (const match of allMatches) {
       const homeLogo = await getTeamLogo(match.homeTeam);
       const awayLogo = await getTeamLogo(match.awayTeam);
