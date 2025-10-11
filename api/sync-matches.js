@@ -1,5 +1,7 @@
 const admin = require("firebase-admin");
-const fetchFn = require("node-fetch"); // ✅ direkt import, artık async init yok
+
+// ✅ fetch native (Vercel destekliyor)
+const fetchFn = globalThis.fetch;
 
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -10,6 +12,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// --- Yardımcı: takım ismini normalize et
 function normalizeTeamName(name) {
   return name
     ?.replace(/ FC| CF| AC| SC| AFC| C\.F\.| S\.C\.| F\.C\.| Club/gi, "")
@@ -17,13 +20,18 @@ function normalizeTeamName(name) {
     ?.trim();
 }
 
+// --- TheSportsDB'den logo çek
 async function getTeamLogo(team) {
   if (!team || !team.name) {
     console.log("⚠️ Takım bilgisi eksik:", team);
     return "";
   }
 
-  if (team.crest) return team.crest;
+  // Football-Data API’den gelen crest varsa onu kullan
+  if (team.crest) {
+    console.log(`✅ FootballData logosu var: ${team.name}`);
+    return team.crest;
+  }
 
   const key = process.env.THESPORTSDB_KEY || "3";
   const base = `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php`;
@@ -36,12 +44,15 @@ async function getTeamLogo(team) {
 
   for (const name of variants) {
     try {
-      console.log("🎯 Logo sorgulanıyor:", name);
-      const resp = await fetchFn(`${base}?t=${encodeURIComponent(name)}`);
+      const url = `${base}?t=${encodeURIComponent(name)}`;
+      console.log("🎯 Logo sorgulanıyor:", url);
+      const resp = await fetchFn(url);
       const data = await resp.json();
+
       if (data?.teams?.[0]?.strTeamBadge) {
-        console.log(`✅ Logo bulundu: ${team.name} → ${data.teams[0].strTeamBadge}`);
-        return data.teams[0].strTeamBadge;
+        const logo = data.teams[0].strTeamBadge;
+        console.log(`✅ Logo bulundu: ${team.name} → ${logo}`);
+        return logo;
       }
     } catch (e) {
       console.log("❌ Logo ararken hata:", e.message);
@@ -52,6 +63,7 @@ async function getTeamLogo(team) {
   return "";
 }
 
+// --- Eski maçları sil
 async function deleteOldMatches() {
   const now = new Date();
   const snapshot = await db.collection("matches").get();
