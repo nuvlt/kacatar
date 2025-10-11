@@ -16,13 +16,18 @@ const db = admin.firestore();
 
 function normalizeTeamName(name) {
   return name
-    .replace(/ FC| CF| AC| SC| AFC| C\.F\.| S\.C\.| F\.C\.| Club/gi, "")
-    .replace(/[^a-zA-Z0-9\s]/g, "")
-    .trim();
+    ?.replace(/ FC| CF| AC| SC| AFC| C\.F\.| S\.C\.| F\.C\.| Club/gi, "")
+    ?.replace(/[^a-zA-Z0-9\s]/g, "")
+    ?.trim();
 }
 
 async function getTeamLogo(team) {
-  if (team?.crest) return team.crest;
+  if (!team || !team.name) {
+    console.log("⚠️ Takım bilgisi eksik:", team);
+    return "";
+  }
+
+  if (team.crest) return team.crest;
 
   const key = process.env.THESPORTSDB_KEY || "3";
   const base = `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php`;
@@ -30,11 +35,12 @@ async function getTeamLogo(team) {
   const variants = [
     team.name,
     normalizeTeamName(team.name),
-    normalizeTeamName(team.name).split(" ")[0],
-  ];
+    normalizeTeamName(team.name)?.split(" ")[0],
+  ].filter(Boolean);
 
   for (const name of variants) {
     try {
+      console.log("🎯 Logo sorgulanıyor:", name);
       const resp = await fetchFn(`${base}?t=${encodeURIComponent(name)}`);
       const data = await resp.json();
       if (data?.teams?.[0]?.strTeamBadge) {
@@ -42,10 +48,11 @@ async function getTeamLogo(team) {
         return data.teams[0].strTeamBadge;
       }
     } catch (e) {
-      console.warn(`⚠️ Logo bulunamadı: ${team.name}`);
+      console.log("❌ Logo ararken hata:", e.message);
     }
   }
 
+  console.log("❌ Logo bulunamadı:", team.name);
   return "";
 }
 
@@ -88,6 +95,7 @@ module.exports = async (req, res) => {
 
     for (const comp of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${from}&dateTo=${to}`;
+      console.log("📡 Fetch:", url);
       const response = await fetchFn(url, {
         headers: { "X-Auth-Token": apiKey },
       });
