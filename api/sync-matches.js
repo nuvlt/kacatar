@@ -1,9 +1,5 @@
 const admin = require("firebase-admin");
-
-let fetchFn;
-(async () => {
-  fetchFn = (await import("node-fetch")).default;
-})();
+const fetchFn = require("node-fetch"); // ✅ direkt import, artık async init yok
 
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
