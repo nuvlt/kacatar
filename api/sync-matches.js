@@ -23,10 +23,10 @@ module.exports = async (req, res) => {
     // 🔹 5 büyük lig kodu
     const competitions = ["PL", "PD", "SA", "BL1", "FL1"];
 
-    // 🔹 Tarih aralığı: bugünden +5 gün
+    // 🔹 Tarih aralığı: bugünden +10 gün
     const today = new Date();
     const dateFrom = today.toISOString().split("T")[0];
-    const dateTo = new Date(today.getTime() + 5 * 86400000)
+    const dateTo = new Date(today.getTime() + 10 * 86400000)
       .toISOString()
       .split("T")[0];
 
