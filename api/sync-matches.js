@@ -91,7 +91,7 @@ module.exports = async (req, res) => {
 async function fetchTeamLogo(teamName, key) {
   if (!teamName) return "";
   try {
-    const url = `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php?t=${encodeURIComponent(
+    const url = `https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t=${encodeURIComponent(
       teamName
     )}`;
     const { data } = await axios.get(url);
