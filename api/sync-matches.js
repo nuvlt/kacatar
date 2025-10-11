@@ -25,19 +25,16 @@ module.exports = async (req, res) => {
 
     if (!fetchFn) fetchFn = (await import("node-fetch")).default;
 
-    // 🔹 Ligde kodları (Football-data.org)
-    const leagues = ["PL", "BL1", "PD", "SA", "FL1"]; // Premier, Bundesliga, LaLiga, SerieA, Ligue1
+    const leagues = ["PL", "BL1", "PD", "SA", "FL1"];
 
-    // 🔹 Tarih aralığı (bugün + 7 gün)
     const today = new Date();
     const dateFrom = today.toISOString().split("T")[0];
-    const dateTo = new Date(today.getTime() + 7 * 86400000)
+    const dateTo = new Date(today.getTime() + 10 * 86400000)
       .toISOString()
       .split("T")[0];
 
     console.log(`Fetching matches from ${dateFrom} to ${dateTo}...`);
 
-    // 🔹 Önce tüm mevcut maçları sil
     const matchesRef = db.collection("matches");
     const snapshot = await matchesRef.get();
     const deletePromises = [];
@@ -45,10 +42,9 @@ module.exports = async (req, res) => {
     await Promise.all(deletePromises);
     console.log(`Deleted ${snapshot.size} old matches.`);
 
-    // 🔹 Yeni maçları çek
     let totalAdded = 0;
     for (const league of leagues) {
-      const url = `https://api.football-data.org/v4/matches?competitions=${league}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
+      const url = `https://api.football-data.org/v4/matches?competitions=${league}&dateFrom=${dateFrom}&dateTo=${dateTo}&status=SCHEDULED`;
       const response = await fetchFn(url, {
         headers: { "X-Auth-Token": apiKey },
       });
