@@ -9,12 +9,16 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// --- Takım ismini normalize et ---
+// Küçük gecikme için yardımcı fonksiyon
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Takım ismini normalize et
 function normalizeTeamName(name) {
   if (!name) return "";
   return name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // aksanları kaldır
+    .replace(/ß/g, "ss")
     .replace(/&/g, "and")
     .replace(/[-.]/g, " ")
     .replace(/\b(FC|AFC|CF|Calcio|Club|AS|AC|SSC|UD|CD|US|RC|1\.|190[0-9]|[0-9]{4})\b/gi, "")
@@ -22,7 +26,6 @@ function normalizeTeamName(name) {
     .trim();
 }
 
-// --- Logo çekme ---
 async function getTeamLogo(teamName) {
   if (!teamName) return null;
 
@@ -39,7 +42,7 @@ async function getTeamLogo(teamName) {
   const sportmonksKey = process.env.SPORTMONKS_KEY;
   const thesportsKey = process.env.THESPORTSDB_KEY || "3";
 
-  // 1️⃣ SportMonks ana deneme
+  // 1️⃣ SportMonks tam isim
   try {
     const url = `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(
       normName
@@ -48,11 +51,9 @@ async function getTeamLogo(teamName) {
     const data = await res.json();
     logo = data?.data?.[0]?.image_path || null;
     if (logo) console.log(`⚽ SportMonks: ${normName}`);
-  } catch (e) {
-    console.log(`SportMonks hata (${normName}): ${e.message}`);
-  }
+  } catch {}
 
-  // 2️⃣ SportMonks kısa isim fallback
+  // 2️⃣ SportMonks kısa isim
   if (!logo && normName.includes(" ")) {
     const shortName = normName.split(" ")[0];
     try {
@@ -63,24 +64,36 @@ async function getTeamLogo(teamName) {
       const data = await res.json();
       logo = data?.data?.[0]?.image_path || null;
       if (logo) console.log(`⚽ SportMonks (short): ${shortName}`);
-    } catch (e) {
-      console.log(`SportMonks short hata (${normName}): ${e.message}`);
-    }
+    } catch {}
   }
 
-  // 3️⃣ TheSportsDB fallback
+  // 3️⃣ TheSportsDB (rate limit korumalı)
   if (!logo) {
+    await sleep(700);
     try {
       const url = `https://www.thesportsdb.com/api/v1/json/${thesportsKey}/searchteams.php?t=${encodeURIComponent(
         normName
       )}`;
       const res = await fetch(url);
-      const data = await res.json();
+      const text = await res.text();
+
+      if (text.startsWith("<")) {
+        throw new Error("HTML response");
+      }
+
+      const data = JSON.parse(text);
       logo = data?.teams?.[0]?.strBadge || null;
       if (logo) console.log(`🛟 TheSportsDB: ${normName}`);
     } catch (e) {
       console.log(`TheSportsDB hata (${normName}): ${e.message}`);
     }
+  }
+
+  // 4️⃣ Clearbit fallback (en son)
+  if (!logo) {
+    const domain = `${normName.replace(/\s+/g, "").toLowerCase()}.com`;
+    logo = `https://logo.clearbit.com/${domain}`;
+    console.log(`💡 Clearbit fallback: ${normName}`);
   }
 
   if (logo) {
@@ -92,7 +105,6 @@ async function getTeamLogo(teamName) {
   return logo;
 }
 
-// --- Ana senkronizasyon ---
 export default async function handler(req, res) {
   const key = req.query.key;
   if (key !== process.env.SECRET_KEY) {
@@ -101,16 +113,14 @@ export default async function handler(req, res) {
 
   const footballApiKey = process.env.FOOTBALL_API_KEY;
   const sportmonksKey = process.env.SPORTMONKS_KEY;
-  const thesportsKey = process.env.THESPORTSDB_KEY;
 
-  if (!footballApiKey || !sportmonksKey || !thesportsKey) {
-    return res.status(400).json({ error: "API anahtarları eksik (FOOTBALL_API_KEY veya THESPORTSDB_KEY veya SPORTMONKS_KEY)" });
+  if (!footballApiKey || !sportmonksKey) {
+    return res.status(400).json({ error: "API anahtarları eksik." });
   }
 
   const leagues = ["PL", "PD", "SA", "BL1", "FL1"];
   const today = new Date();
   const dateFrom = today.toISOString().split("T")[0];
-
   const dateTo = new Date(today);
   dateTo.setDate(today.getDate() + 10);
   const dateToStr = dateTo.toISOString().split("T")[0];
