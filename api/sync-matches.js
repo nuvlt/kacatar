@@ -5,7 +5,7 @@ module.exports = async (req, res) => {
   console.log("🚀 sync-matches başlatıldı");
 
   try {
-    // --- ENV kontrolü ---
+    // 🔑 Environment kontrolü
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
     const SPORTMONKS_API_KEY = process.env.SPORTMONKS_API_KEY;
     const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY;
@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
       );
     }
 
-    // --- Firestore bağlantısı ---
+    // 🔥 Firestore bağlantısı
     const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
     const firestore = new Firestore({
       projectId: serviceAccount.project_id,
@@ -44,40 +44,52 @@ module.exports = async (req, res) => {
     let foundLogos = 0;
     let missingLogos = 0;
 
-    // --- Helper: takım logosu bul ---
+    // 🎯 Yardımcı: Takım adı düzeltici
+    const cleanName = (name) => {
+      if (!name) return "";
+      return name
+        .replace(/FC|CF|AC|SSC|ASD|U19|U21|AFC|SC|FK|BK|B|C|D|E|G|H|J|K|L|M|N|P|R|S|T|U|V|X|Y|Z$/gi, "")
+        .trim()
+        .replace(/\s{2,}/g, " ");
+    };
+
+    // ⚽ Logo bulucu
     async function getTeamLogo(teamName) {
       if (!teamName) return null;
+      const cleanTeam = cleanName(teamName);
 
-      // 1️⃣ SportMonks denemesi
+      // 1️⃣ SportMonks
       const sportmonksUrl = `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(
-        teamName
+        cleanTeam
       )}?api_token=${SPORTMONKS_API_KEY}`;
+
       try {
         const smRes = await fetch(sportmonksUrl);
         if (smRes.ok) {
           const smData = await smRes.json();
           if (smData.data && smData.data.length > 0) {
-            const logo = smData.data[0].image_path || smData.data[0].logo;
+            const team = smData.data[0];
+            const logo = team.image_path || team.logo;
             if (logo) {
-              console.log(`⚽ SportMonks: ${teamName}`);
+              console.log(`⚽ SportMonks: ${cleanTeam}`);
               return logo;
             }
           }
         }
       } catch (err) {
-        console.warn(`SportMonks hata (${teamName}):`, err.message);
+        console.warn(`SportMonks hata (${cleanTeam}):`, err.message);
       }
 
       // 2️⃣ TheSportsDB fallback
       const tsdbUrl = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(
-        teamName
+        cleanTeam
       )}`;
       try {
         const tsRes = await fetch(tsdbUrl);
         if (tsRes.ok) {
           const text = await tsRes.text();
           if (text.startsWith("<")) {
-            console.warn(`TheSportsDB HTML döndü: ${teamName}`);
+            console.warn(`TheSportsDB HTML döndü: ${cleanTeam}`);
             return null;
           }
           const tsData = JSON.parse(text);
@@ -87,20 +99,20 @@ module.exports = async (req, res) => {
               tsData.teams[0].strTeamLogo ||
               tsData.teams[0].strBadge;
             if (logo) {
-              console.log(`🛟 TheSportsDB: ${teamName}`);
+              console.log(`🛟 TheSportsDB: ${cleanTeam}`);
               return logo;
             }
           }
         }
       } catch (err) {
-        console.warn(`TheSportsDB hata (${teamName}):`, err.message);
+        console.warn(`TheSportsDB hata (${cleanTeam}):`, err.message);
       }
 
-      console.log(`❌ Logo bulunamadı: ${teamName}`);
+      console.log(`❌ Logo bulunamadı: ${cleanTeam}`);
       return null;
     }
 
-    // --- Ana döngü ---
+    // 🔁 Lig bazında döngü
     for (const competition of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${competition}&dateFrom=${today}&dateTo=${dateTo}`;
       console.log("📡 Fetch:", url);
@@ -112,8 +124,9 @@ module.exports = async (req, res) => {
       if (!fdData.matches) continue;
 
       for (const match of fdData.matches) {
-        const home = match.homeTeam?.name || "bilinmiyor";
-        const away = match.awayTeam?.name || "bilinmiyor";
+        // 👉 Takım isimleri için doğru alan
+        const home = match.homeTeam?.shortName || match.homeTeam?.name || "bilinmiyor";
+        const away = match.awayTeam?.shortName || match.awayTeam?.name || "bilinmiyor";
         totalMatches++;
 
         const homeLogo = await getTeamLogo(home);
