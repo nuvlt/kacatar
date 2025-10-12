@@ -1,8 +1,11 @@
 // /api/sync-matches.js
-import fetch from "node-fetch";
-import admin from "firebase-admin";
+const admin = require("firebase-admin");
 
-// Firebase init (double init önleme)
+let fetchFn;
+(async () => {
+  fetchFn = (await import("node-fetch")).default;
+})();
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
@@ -10,15 +13,13 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-
-// Lig kodları (Football-data.org)
 const LEAGUES = ["PL", "PD", "SA", "BL1", "FL1"];
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   try {
     const SECRET_KEY = process.env.SECRET_KEY;
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
-    const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY;
+    const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY || "3";
 
     if (!FOOTBALL_API_KEY || !THESPORTSDB_KEY) {
       return res.status(400).json({ error: "API anahtarları eksik (FOOTBALL_API_KEY veya THESPORTSDB_KEY)" });
@@ -29,19 +30,18 @@ export default async function handler(req, res) {
 
     const today = new Date();
     const dateFrom = today.toISOString().split("T")[0];
-
-    // +10 gün
-    const dateToObj = new Date();
+    const dateToObj = new Date(today);
     dateToObj.setDate(today.getDate() + 10);
     const dateTo = dateToObj.toISOString().split("T")[0];
 
+    console.log(`📅 Tarih aralığı: ${dateFrom} → ${dateTo}`);
+
     let allMatches = [];
-    console.log(`📅 Çekiliyor: ${dateFrom} → ${dateTo}`);
 
     for (const league of LEAGUES) {
       const url = `https://api.football-data.org/v4/matches?competitions=${league}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
       console.log("📡 Fetch:", url);
-      const resp = await fetch(url, {
+      const resp = await fetchFn(url, {
         headers: { "X-Auth-Token": FOOTBALL_API_KEY },
       });
       const data = await resp.json();
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     oldMatches.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
 
-    // Logo arama fonksiyonu
+    // Logo arama
     const getLogo = async (teamName) => {
       if (!teamName) return null;
       const normalized = teamName
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
       // 1️⃣ TheSportsDB
       try {
         const url = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(normalized)}`;
-        const resp = await fetch(url);
+        const resp = await fetchFn(url);
         const data = await resp.json();
         const teams = data.teams;
         if (teams && teams.length > 0) {
@@ -82,16 +82,14 @@ export default async function handler(req, res) {
       // 2️⃣ Clearbit fallback
       const fallbackLogo = `https://logo.clearbit.com/${normalized.replace(/\s+/g, "").toLowerCase()}.com`;
       try {
-        const test = await fetch(fallbackLogo);
+        const test = await fetchFn(fallbackLogo);
         if (test.ok) return fallbackLogo;
-      } catch (e) {
-        // ignore
-      }
+      } catch (_) {}
 
       return null;
     };
 
-    // Maçları ekle
+    // Maçları kaydet
     let found = 0;
     let missing = 0;
 
@@ -121,7 +119,7 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({
+    return res.json({
       ok: true,
       message: `${allMatches.length} maç senkronize edildi.`,
       logos: { found, missing },
@@ -130,4 +128,4 @@ export default async function handler(req, res) {
     console.error("🔥 Hata:", err);
     return res.status(500).json({ error: err.message });
   }
-}
+};
