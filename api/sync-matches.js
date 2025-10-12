@@ -1,3 +1,9 @@
+console.log("ENV CHECK", {
+  FOOTBALL_API_KEY: !!process.env.FOOTBALL_API_KEY,
+  SPORTMONKS_API_KEY: !!process.env.SPORTMONKS_API_KEY,
+  THESPORTSDB_KEY: !!process.env.THESPORTSDB_KEY,
+});
+
 // ESM-CJS uyumlu fetch tanımı
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const admin = require("firebase-admin");
