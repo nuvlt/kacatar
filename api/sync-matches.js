@@ -1,9 +1,22 @@
-import admin from "firebase-admin";
+   // 1. Adım: Ortam değişkenini kontrol et ve JSON olarak ayrıştır
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try {
+            // Değeri JSON olarak ayrıştır
+            credentials = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            console.log("✅ Hizmet hesabı JSON'u ortam değişkeninden yüklendi.");
+        } catch (e) {
+            console.error("❌ Hata: FIREBASE_SERVICE_ACCOUNT JSON ayrıştırılamadı.", e);
+            // Hata durumunda varsayılan kimlik bilgilerine geri dönülebilir
+        }
+    }
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-  });
+    // 2. Adım: Admin SDK'yı başlat
+    admin.initializeApp({
+        // Eğer `credentials` yüklendiyse onu kullan, yoksa eski varsayılan yöntemi kullan
+        credential: credentials 
+            ? admin.credential.cert(credentials) 
+            : admin.credential.applicationDefault(),
+    });
 }
 
 const db = admin.firestore();
