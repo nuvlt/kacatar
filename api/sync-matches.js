@@ -1,4 +1,3 @@
-// /api/sync-matches.js
 const admin = require("firebase-admin");
 
 let fetchFn;
@@ -21,12 +20,9 @@ module.exports = async (req, res) => {
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
     const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY || "3";
 
-    if (!FOOTBALL_API_KEY || !THESPORTSDB_KEY) {
+    if (!FOOTBALL_API_KEY || !THESPORTSDB_KEY)
       return res.status(400).json({ error: "API anahtarları eksik (FOOTBALL_API_KEY veya THESPORTSDB_KEY)" });
-    }
-    if (req.query.key !== SECRET_KEY) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    if (req.query.key !== SECRET_KEY) return res.status(401).json({ error: "Unauthorized" });
 
     const today = new Date();
     const dateFrom = today.toISOString().split("T")[0];
@@ -38,25 +34,25 @@ module.exports = async (req, res) => {
 
     let allMatches = [];
 
+    // 1️⃣ Football Data’dan maçları çek
     for (const league of LEAGUES) {
       const url = `https://api.football-data.org/v4/matches?competitions=${league}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
       console.log("📡 Fetch:", url);
-      const resp = await fetchFn(url, {
-        headers: { "X-Auth-Token": FOOTBALL_API_KEY },
-      });
+      const resp = await fetchFn(url, { headers: { "X-Auth-Token": FOOTBALL_API_KEY } });
       const data = await resp.json();
       if (data.matches) allMatches = allMatches.concat(data.matches);
     }
 
-    // Eski maçları sil
-    const oldMatches = await db.collection("matches").get();
+    // 2️⃣ Eski maçları sil
+    const old = await db.collection("matches").get();
     const batch = db.batch();
-    oldMatches.forEach((doc) => batch.delete(doc.ref));
+    old.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
 
-    // Logo arama
+    // 3️⃣ Logo arama fonksiyonu
     const getLogo = async (teamName) => {
       if (!teamName) return null;
+
       const normalized = teamName
         .replace(/\bFC\b/gi, "")
         .replace(/\bCF\b/gi, "")
@@ -65,42 +61,57 @@ module.exports = async (req, res) => {
         .replace(/\s{2,}/g, " ")
         .trim();
 
-      // 1️⃣ TheSportsDB
+      // 🥇 TheSportsDB
       try {
-        const url = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(normalized)}`;
+        const url = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(
+          normalized
+        )}`;
         const resp = await fetchFn(url);
         const data = await resp.json();
-        const teams = data.teams;
-        if (teams && teams.length > 0) {
-          const soccerTeam = teams.find((t) => t.strSport === "Soccer") || teams[0];
-          if (soccerTeam?.strBadge) return soccerTeam.strBadge;
-        }
-      } catch (e) {
-        console.warn("⚠️ TheSportsDB logo alınamadı:", teamName);
-      }
+        const team = data?.teams?.find((t) => t.strSport === "Soccer") || data?.teams?.[0];
+        if (team?.strBadge) return team.strBadge;
+      } catch (_) {}
 
-      // 2️⃣ Clearbit fallback
-      const fallbackLogo = `https://logo.clearbit.com/${normalized.replace(/\s+/g, "").toLowerCase()}.com`;
+      // 🥈 Wikipedia
       try {
-        const test = await fetchFn(fallbackLogo);
-        if (test.ok) return fallbackLogo;
+        const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+          normalized
+        )}&prop=pageimages&pithumbsize=600&format=json&origin=*`;
+        const resp = await fetchFn(wikiUrl);
+        const wikiData = await resp.json();
+        const pages = wikiData.query?.pages || {};
+        const firstPage = Object.values(pages)[0];
+        if (firstPage?.thumbnail?.source) return firstPage.thumbnail.source;
+      } catch (_) {}
+
+      // 🥉 Clearbit
+      const domain = normalized.replace(/\s+/g, "").toLowerCase();
+      const clearbitUrl = `https://logo.clearbit.com/${domain}.com`;
+      try {
+        const test = await fetchFn(clearbitUrl);
+        if (test.ok) return clearbitUrl;
       } catch (_) {}
 
       return null;
     };
 
-    // Maçları kaydet
+    // 4️⃣ Firestore’a yaz
     let found = 0;
     let missing = 0;
 
     for (const m of allMatches) {
-      const homeTeam = m.homeTeam.name;
-      const awayTeam = m.awayTeam.name;
+      const homeTeam =
+        m.homeTeam?.name ||
+        m.homeTeam?.shortName ||
+        m.homeTeam?.tla ||
+        `Team-${m.homeTeam?.id || "Unknown"}`;
+      const awayTeam =
+        m.awayTeam?.name ||
+        m.awayTeam?.shortName ||
+        m.awayTeam?.tla ||
+        `Team-${m.awayTeam?.id || "Unknown"}`;
 
-      const [homeLogo, awayLogo] = await Promise.all([
-        getLogo(homeTeam),
-        getLogo(awayTeam),
-      ]);
+      const [homeLogo, awayLogo] = await Promise.all([getLogo(homeTeam), getLogo(awayTeam)]);
 
       if (homeLogo) found++;
       else missing++;
@@ -110,10 +121,10 @@ module.exports = async (req, res) => {
       await db.collection("matches").doc(String(m.id)).set({
         id: m.id,
         utcDate: m.utcDate,
-        status: m.status,
         competition: m.competition.name,
-        homeTeam: homeTeam,
-        awayTeam: awayTeam,
+        status: m.status,
+        homeTeam,
+        awayTeam,
         homeLogo: homeLogo || null,
         awayLogo: awayLogo || null,
       });
