@@ -36,7 +36,7 @@ async function getTeamLogo(teamName) {
   }
 
   let logo = null;
-  const sportmonksKey = process.env.SPORTMONKS_KEY;
+  const sportmonksKey = process.env.SPORTMONKS_API_KEY;
   const thesportsKey = process.env.THESPORTSDB_KEY || "3";
 
   // 1️⃣ SportMonks ana deneme
@@ -71,7 +71,7 @@ async function getTeamLogo(teamName) {
   // 3️⃣ TheSportsDB fallback
   if (!logo) {
     try {
-      const url = `https://www.thesportsdb.com/api/v1/json/${thesportsKey}/searchteams.php?t=${encodeURIComponent(
+      const url = `https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t=${encodeURIComponent(
         normName
       )}`;
       const res = await fetch(url);
@@ -100,11 +100,11 @@ export default async function handler(req, res) {
   }
 
   const footballApiKey = process.env.FOOTBALL_API_KEY;
-  const sportmonksKey = process.env.SPORTMONKS_KEY;
+  const sportmonksKey = process.env.SPORTMONKS_API_KEY;
   const thesportsKey = process.env.THESPORTSDB_KEY;
 
   if (!footballApiKey || !sportmonksKey || !thesportsKey) {
-    return res.status(400).json({ error: "API anahtarları eksik (FOOTBALL_API_KEY veya THESPORTSDB_KEY veya SPORTMONKS_KEY)" });
+    return res.status(400).json({ error: "API anahtarları eksik (FOOTBALL_API_KEY veya THESPORTSDB_KEY veya SPORTMONKS_API_KEY)" });
   }
 
   const leagues = ["PL", "PD", "SA", "BL1", "FL1"];
