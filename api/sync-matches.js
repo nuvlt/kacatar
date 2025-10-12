@@ -49,7 +49,7 @@ module.exports = async (req, res) => {
     old.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
 
-    // 3️⃣ Logo arama fonksiyonu
+    // 3️⃣ Logo arama (TheSportsDB + Clearbit)
     const getLogo = async (teamName) => {
       if (!teamName) return null;
 
@@ -72,24 +72,12 @@ module.exports = async (req, res) => {
         if (team?.strBadge) return team.strBadge;
       } catch (_) {}
 
-      // 🥈 Wikipedia
+      // 🥈 Clearbit fallback
       try {
-        const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
-          normalized
-        )}&prop=pageimages&pithumbsize=600&format=json&origin=*`;
-        const resp = await fetchFn(wikiUrl);
-        const wikiData = await resp.json();
-        const pages = wikiData.query?.pages || {};
-        const firstPage = Object.values(pages)[0];
-        if (firstPage?.thumbnail?.source) return firstPage.thumbnail.source;
-      } catch (_) {}
-
-      // 🥉 Clearbit
-      const domain = normalized.replace(/\s+/g, "").toLowerCase();
-      const clearbitUrl = `https://logo.clearbit.com/${domain}.com`;
-      try {
-        const test = await fetchFn(clearbitUrl);
-        if (test.ok) return clearbitUrl;
+        const domain = normalized.replace(/\s+/g, "").toLowerCase();
+        const clearbitUrl = `https://logo.clearbit.com/${domain}.com`;
+        const resp = await fetchFn(clearbitUrl);
+        if (resp.ok) return clearbitUrl;
       } catch (_) {}
 
       return null;
@@ -101,15 +89,15 @@ module.exports = async (req, res) => {
 
     for (const m of allMatches) {
       const homeTeam =
-        m.homeTeam?.name ||
-        m.homeTeam?.shortName ||
-        m.homeTeam?.tla ||
-        `Team-${m.homeTeam?.id || "Unknown"}`;
+        m?.homeTeam?.name ||
+        m?.homeTeam?.shortName ||
+        m?.homeTeam?.tla ||
+        `Home-${m?.homeTeam?.id || "Unknown"}`;
       const awayTeam =
-        m.awayTeam?.name ||
-        m.awayTeam?.shortName ||
-        m.awayTeam?.tla ||
-        `Team-${m.awayTeam?.id || "Unknown"}`;
+        m?.awayTeam?.name ||
+        m?.awayTeam?.shortName ||
+        m?.awayTeam?.tla ||
+        `Away-${m?.awayTeam?.id || "Unknown"}`;
 
       const [homeLogo, awayLogo] = await Promise.all([getLogo(homeTeam), getLogo(awayTeam)]);
 
@@ -121,7 +109,7 @@ module.exports = async (req, res) => {
       await db.collection("matches").doc(String(m.id)).set({
         id: m.id,
         utcDate: m.utcDate,
-        competition: m.competition.name,
+        competition: m.competition?.name || "Unknown League",
         status: m.status,
         homeTeam,
         awayTeam,
