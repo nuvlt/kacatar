@@ -1,5 +1,4 @@
 // /api/sync-matches.js
-import fetch from "node-fetch";
 import admin from "firebase-admin";
 
 if (!admin.apps.length) {
@@ -111,7 +110,7 @@ async function findLogo(teamName, sportmonksKey, sportsdbKey) {
   // 2️⃣ TheSportsDB fallback (1 sn bekleme ile)
   try {
     await new Promise((r) => setTimeout(r, 1000));
-    const tsUrl = `https://www.thesportsdb.com/api/v1/json/${sportsdbKey}/searchteams.php?t=${encodeURIComponent(
+    const tsUrl = `https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t=${encodeURIComponent(
       teamName
     )}`;
     const tsRes = await fetch(tsUrl);
