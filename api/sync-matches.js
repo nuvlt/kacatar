@@ -1,30 +1,46 @@
+import fetch from "node-fetch";
 import admin from "firebase-admin";
 
-// Firestore bağlantısı (güvenli ve Vercel uyumlu)
+// --- 🔧 ENV Variables ---
+const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
+const SPORTMONKS_API_KEY = process.env.SPORTMONKS_API_KEY;
+const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY;
+const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+// --- 🔥 Firestore Init ---
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  if (!FIREBASE_SERVICE_ACCOUNT)
+    throw new Error("FIREBASE_SERVICE_ACCOUNT tanımlı değil.");
+
+  const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    projectId: serviceAccount.project_id, // 🔥 Zorunlu satır
   });
 }
 const db = admin.firestore();
 
-// node-fetch'i dinamik import ile çağırıyoruz (require hatasını çözer)
-const fetchFn = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
+// --- 🧹 Eski maçları sil ---
+async function clearOldMatches() {
+  const matchesRef = db.collection("matches");
+  const snapshot = await matchesRef.get();
+  const batch = db.batch();
+  snapshot.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+  console.info("🧹 Eski maçlar silindi.");
+}
 
-const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
-const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY;
-const SPORTMONKS_API_KEY = process.env.SPORTMONKS_API_KEY;
+// --- 🧩 Takım ismini normalize et ---
+function normalizeTeamName(name) {
+  return name
+    .replace(/FC|CF|AC|AS|SC|US|SV|AFC|SS|1\.|Club|de|Calcio|Balompié/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-// Lig kodları
-const LEAGUES = ["PL", "PD", "SA", "BL1", "FL1"];
-
-// Yardımcı: takım logosunu bulma
+// --- 🏷️ Logo bulma fonksiyonu ---
 async function findTeamLogo(teamName) {
   if (!teamName) return null;
 
-  // Önce Firestore'da kayıtlı mı bakalım
   const teamRef = db.collection("teams").doc(teamName);
   const existing = await teamRef.get();
   if (existing.exists && existing.data().logo) {
@@ -32,35 +48,53 @@ async function findTeamLogo(teamName) {
     return existing.data().logo;
   }
 
-  // SportMonks'tan dene
+  const cleanName = normalizeTeamName(teamName);
+
+  // --- ⚽ SPORTMONKS ---
   try {
-    const sportMonksUrl = `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(
-      teamName
+    const sportUrl = `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(
+      cleanName
     )}?api_token=${SPORTMONKS_API_KEY}`;
-    const sportRes = await fetchFn(sportMonksUrl);
+
+    const sportRes = await fetch(sportUrl);
     const sportData = await sportRes.json();
 
-    const logo = sportData?.data?.[0]?.image_path || null;
+    const logo =
+      sportData?.data?.[0]?.image_path ||
+      sportData?.data?.[0]?.logo ||
+      sportData?.data?.[0]?.image_url ||
+      null;
+
     if (logo) {
-      console.info(`⚽ SportMonks: ${teamName}`);
+      console.info(`⚽ SportMonks: ${cleanName}`);
       await teamRef.set({ logo }, { merge: true });
       return logo;
+    } else {
+      console.info(`❌ SportMonks'ta bulunamadı: ${cleanName}`);
     }
   } catch (err) {
-    console.warn(`⚠️ SportMonks hata (${teamName}): ${err.message}`);
+    console.warn(`⚠️ SportMonks hata (${cleanName}): ${err.message}`);
   }
 
-  // TheSportsDB fallback
+  // --- 🛟 TheSportsDB Fallback ---
   try {
-    const tsdbUrl = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(
-      teamName
+    const tsUrl = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(
+      cleanName
     )}`;
-    const tsRes = await fetchFn(tsdbUrl);
-    const tsData = await tsRes.json();
+    const tsRes = await fetch(tsUrl);
+    const text = await tsRes.text();
 
-    const logo = tsData?.teams?.[0]?.strTeamBadge || null;
+    // Bazı durumlarda HTML dönebiliyor
+    if (text.trim().startsWith("<")) {
+      console.warn(`TheSportsDB HTML döndü: ${cleanName}`);
+      return null;
+    }
+
+    const tsData = JSON.parse(text);
+    const logo =
+      tsData?.teams?.[0]?.strTeamBadge || tsData?.teams?.[0]?.strBadge || null;
     if (logo) {
-      console.info(`🛟 TheSportsDB: ${teamName}`);
+      console.info(`🛟 TheSportsDB: ${cleanName}`);
       await teamRef.set({ logo }, { merge: true });
       return logo;
     }
@@ -68,34 +102,38 @@ async function findTeamLogo(teamName) {
     console.warn(`TheSportsDB hata (${teamName}): ${err.message}`);
   }
 
-  console.info(`❌ Logo bulunamadı: ${teamName}`);
+  console.info(`❌ Logo bulunamadı: ${cleanName}`);
   return null;
 }
 
-// Asıl senkronizasyon handler'ı
+// --- ⚡ Ana handler ---
 export default async function handler(req, res) {
   try {
-    console.info("🧹 Eski maçlar silindi.");
+    if (!FOOTBALL_API_KEY || !SPORTMONKS_API_KEY || !THESPORTSDB_KEY) {
+      throw new Error("API anahtarları eksik (FOOTBALL_API_KEY veya SPORTMONKS_API_KEY veya THESPORTSDB_KEY)");
+    }
+
+    await clearOldMatches();
 
     const today = new Date();
     const dateFrom = today.toISOString().split("T")[0];
-    const dateTo = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000)
+    const dateTo = new Date(today.setDate(today.getDate() + 10))
       .toISOString()
       .split("T")[0];
 
-    let totalMatches = 0;
-    let foundLogos = 0;
-    let missingLogos = 0;
+    const competitions = ["PL", "PD", "SA", "BL1", "FL1"];
+    const foundLogos = [];
+    const missingLogos = [];
 
-    for (const league of LEAGUES) {
-      const url = `https://api.football-data.org/v4/matches?competitions=${league}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
-
+    for (const comp of competitions) {
+      const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
       console.info(`📡 Fetch: ${url}`);
-      const response = await fetchFn(url, {
+
+      const resFD = await fetch(url, {
         headers: { "X-Auth-Token": FOOTBALL_API_KEY },
       });
 
-      const data = await response.json();
+      const data = await resFD.json();
       if (!data.matches) continue;
 
       for (const match of data.matches) {
@@ -107,31 +145,33 @@ export default async function handler(req, res) {
           findTeamLogo(awayTeam),
         ]);
 
-        if (homeLogo) foundLogos++;
-        else missingLogos++;
-        if (awayLogo) foundLogos++;
-        else missingLogos++;
+        if (homeLogo || awayLogo) foundLogos.push(homeTeam, awayTeam);
+        else missingLogos.push(homeTeam, awayTeam);
 
-        const matchData = {
-          utcDate: match.utcDate,
-          status: match.status,
-          competition: league,
-          homeTeam: { name: homeTeam, logo: homeLogo },
-          awayTeam: { name: awayTeam, logo: awayLogo },
-        };
-
-        await db.collection("matches").doc(`${league}_${match.id}`).set(matchData);
-        totalMatches++;
+        await db.collection("matches").doc(`${match.id}`).set(
+          {
+            utcDate: match.utcDate,
+            competition: comp,
+            homeTeam,
+            awayTeam,
+            homeLogo: homeLogo || null,
+            awayLogo: awayLogo || null,
+          },
+          { merge: true }
+        );
       }
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       ok: true,
-      message: `${totalMatches} maç senkronize edildi.`,
-      logos: { found: foundLogos, missing: missingLogos },
+      message: `${foundLogos.length / 2} maç senkronize edildi.`,
+      logos: {
+        found: foundLogos.length,
+        missing: missingLogos.length,
+      },
     });
   } catch (error) {
-    console.error("🚨 Genel hata:", error);
-    return res.status(500).json({ ok: false, error: error.message });
+    console.error("❌ Hata:", error);
+    res.status(500).json({ error: error.message });
   }
 }
