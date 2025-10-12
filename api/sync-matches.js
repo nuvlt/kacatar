@@ -85,7 +85,7 @@ async function findTeamLogo(teamName) {
 
   // --- 🛟 TheSportsDB Fallback ---
   try {
-    const tsUrl = `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(
+    const tsUrl = `https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t=${encodeURIComponent(
       cleanName
     )}`;
     const tsRes = await fetch(tsUrl);
