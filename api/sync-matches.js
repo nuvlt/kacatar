@@ -1,4 +1,5 @@
-import fetch from "node-fetch";
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
 import admin from "firebase-admin";
 
 if (!admin.apps.length) {
