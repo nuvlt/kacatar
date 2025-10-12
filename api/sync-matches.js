@@ -1,5 +1,6 @@
-import fetch from "node-fetch";
-import admin from "firebase-admin";
+// ESM-CJS uyumlu fetch tanımı
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const admin = require("firebase-admin");
 
 // --- 🔧 ENV Variables ---
 const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
@@ -107,10 +108,12 @@ async function findTeamLogo(teamName) {
 }
 
 // --- ⚡ Ana handler ---
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   try {
     if (!FOOTBALL_API_KEY || !SPORTMONKS_API_KEY || !THESPORTSDB_KEY) {
-      throw new Error("API anahtarları eksik (FOOTBALL_API_KEY veya SPORTMONKS_API_KEY veya THESPORTSDB_KEY)");
+      throw new Error(
+        "API anahtarları eksik (FOOTBALL_API_KEY veya SPORTMONKS_API_KEY veya THESPORTSDB_KEY)"
+      );
     }
 
     await clearOldMatches();
@@ -174,4 +177,4 @@ export default async function handler(req, res) {
     console.error("❌ Hata:", error);
     res.status(500).json({ error: error.message });
   }
-}
+};
