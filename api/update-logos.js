@@ -1,107 +1,117 @@
-import fetch from "node-fetch";
-import admin from "firebase-admin";
+// /api/update-logos.js
 
-if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
+const { Firestore } = require('@google-cloud/firestore');
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-const db = admin.firestore();
+// Firestore ayarları
+const firestore = new Firestore({
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  credentials: process.env.FIREBASE_SERVICE_ACCOUNT
+    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    : undefined,
+});
 
-const GOOGLE_SEARCH_KEY = process.env.GOOGLE_SEARCH_KEY;
-const GOOGLE_CX = process.env.GOOGLE_CX;
+// Alias eşleştirmeleri
+const TEAM_ALIASES = {
+  "FC Internazionale Milano": "Inter Milan",
+  "Bayer 04 Leverkusen": "Leverkusen",
+  "Borussia Mönchengladbach": "Gladbach",
+  "1. FC Köln": "FC Koln",
+  "RB Leipzig": "Red Bull Leipzig",
+  "VfL Wolfsburg": "Wolfsburg",
+  "1. FSV Mainz 05": "Mainz",
+  "Eintracht Frankfurt": "Frankfurt",
+  "Paris Saint-Germain FC": "PSG",
+  "Olympique de Marseille": "Marseille",
+  "AS Monaco FC": "Monaco",
+  "Olympique Lyonnais": "Lyon",
+  "Tottenham Hotspur FC": "Tottenham",
+  "Manchester United FC": "Man United",
+  "Manchester City FC": "Man City",
+  "Arsenal FC": "Arsenal",
+};
 
-export default async function handler(req, res) {
-  console.log("🚀 update-logos çalışıyor");
+// Ana fonksiyon
+module.exports = async (req, res) => {
+  try {
+    console.log("🚀 Logo güncelleme başlatıldı...");
 
-  if (!GOOGLE_SEARCH_KEY || !GOOGLE_CX) {
-    return res.status(500).json({
-      error: "Google API bilgileri eksik (GOOGLE_SEARCH_KEY veya GOOGLE_CX).",
-    });
-  }
+    const GOOGLE_KEY = process.env.GOOGLE_SEARCH_KEY;
+    const GOOGLE_CX = process.env.GOOGLE_SEARCH_CX;
+    const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY;
+    const forceUpdate = req.query.forceUpdate === "true";
 
-  const teamsSnap = await db.collection("teams").get();
-  if (teamsSnap.empty) {
-    return res.json({ ok: false, message: "Takım bulunamadı." });
-  }
-
-  let updated = 0;
-  let skipped = 0;
-  let errors = 0;
-
-  for (const doc of teamsSnap.docs) {
-    const team = doc.data();
-    const teamName = team.name || "Bilinmiyor";
-
-    // Zaten varsa atla
-    if (team.logo && team.logo.includes("http")) {
-      skipped++;
-      continue;
+    if (!GOOGLE_KEY || !GOOGLE_CX || !THESPORTSDB_KEY) {
+      throw new Error("API anahtarları eksik (Google veya TheSportsDB)");
     }
 
-    // Firestore cache kontrolü
-    const cached = await db.collection("logos").doc(teamName).get();
-    if (cached.exists && cached.data().logo) {
-      await doc.ref.update({ logo: cached.data().logo });
-      console.log(`♻️ Cache'den logo: ${teamName}`);
-      continue;
-    }
+    const teamsSnap = await firestore.collection('teams').get();
+    const teams = teamsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    try {
-      const logoUrl = await fetchGoogleLogo(teamName);
+    let updated = 0, skipped = 0, errors = 0;
+
+    for (const team of teams) {
+      const name = team.name || "bilinmiyor";
+      const alias = TEAM_ALIASES[name] || name;
+
+      // Eğer logo varsa ve forceUpdate kapalıysa atla
+      if (team.logo && !forceUpdate) {
+        console.log(`⏭️ Atlandı: ${alias} (logo zaten var)`);
+        skipped++;
+        continue;
+      }
+
+      // 1️⃣ Önce Google'dan ara
+      let logoUrl = await fetchGoogleLogo(alias, GOOGLE_KEY, GOOGLE_CX);
+
+      // 2️⃣ Olmazsa TheSportsDB'den dene
+      if (!logoUrl) logoUrl = await fetchTheSportsDBLogo(alias, THESPORTSDB_KEY);
+
       if (logoUrl) {
-        await doc.ref.update({ logo: logoUrl });
-        await db.collection("logos").doc(teamName).set({
-          logo: logoUrl,
-          source: "google",
-          lastChecked: new Date().toISOString(),
-        });
-        console.log(`🟢 Logo bulundu: ${teamName}`);
+        await firestore.collection('teams').doc(team.id).update({ logo: logoUrl });
+        console.log(`🟢 Güncellendi: ${alias}`);
         updated++;
       } else {
-        console.log(`❌ Logo bulunamadı: ${teamName}`);
+        console.log(`❌ Logo bulunamadı: ${alias}`);
+        errors++;
       }
-    } catch (err) {
-      console.error(`⚠️ Hata: ${teamName}`, err.message);
-      errors++;
     }
+
+    console.log("🏁 Güncelleme tamamlandı.");
+    res.status(200).json({
+      ok: true,
+      message: "Logo güncelleme tamamlandı.",
+      summary: { updated, skipped, errors },
+    });
+
+  } catch (err) {
+    console.error("❌ Hata:", err);
+    res.status(500).json({ error: err.message });
   }
+};
 
-  return res.json({
-    ok: true,
-    message: `Logo güncelleme tamamlandı.`,
-    summary: { updated, skipped, errors },
-  });
-}
-
-async function fetchGoogleLogo(teamName) {
-  const encodedQuery = encodeURIComponent(
-    `${teamName} football club logo site:wikipedia.org OR site:wikimedia.org`
-  );
-
-  const url = `https://www.googleapis.com/customsearch/v1?q=${encodedQuery}&cx=${GOOGLE_CX}&key=${GOOGLE_SEARCH_KEY}&searchType=image&num=1`;
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    console.warn(`Google API yanıtı: ${response.status}`);
+// Google Custom Search API
+async function fetchGoogleLogo(teamName, key, cx) {
+  try {
+    const query = encodeURIComponent(`${teamName} football club logo site:wikipedia.org OR site:wikimedia.org`);
+    const url = `https://www.googleapis.com/customsearch/v1?q=${query}&cx=${cx}&key=${key}&searchType=image&num=1`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data?.items?.[0]?.link || null;
+  } catch (err) {
+    console.warn("Google hata:", err.message);
     return null;
   }
+}
 
-  const data = await response.json();
-  if (data.items && data.items.length > 0) {
-    return data.items[0].link;
+// TheSportsDB yedeği
+async function fetchTheSportsDBLogo(teamName, key) {
+  try {
+    const url = `https://www.thesportsdb.com/api/v1/json/${key}/searchteams.php?t=${encodeURIComponent(teamName)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data?.teams?.[0]?.strBadge || data?.teams?.[0]?.strLogo || null;
+  } catch {
+    return null;
   }
-
-  // fallback arama
-  const fallbackQuery = encodeURIComponent(`${teamName} logo transparent`);
-  const fallbackUrl = `https://www.googleapis.com/customsearch/v1?q=${fallbackQuery}&cx=${GOOGLE_CX}&key=${GOOGLE_SEARCH_KEY}&searchType=image&num=1`;
-  const fallbackRes = await fetch(fallbackUrl);
-  const fallbackData = await fallbackRes.json();
-  if (fallbackData.items && fallbackData.items.length > 0) {
-    return fallbackData.items[0].link;
-  }
-
-  return null;
 }
