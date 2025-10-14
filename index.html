@@ -3,72 +3,94 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kaccakar | Takım Logoları</title>
+    <title>⚽ Maç Listesi</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-gray-100 min-h-screen">
+    <div class="max-w-4xl mx-auto py-10 px-4">
+      <h1 class="text-3xl font-bold text-center mb-6">⚽ Maçlar</h1>
+      <div id="matchesContainer" class="space-y-4 text-center text-gray-700">
+        <p>Maçlar yükleniyor...</p>
+      </div>
+    </div>
+
     <script type="module">
-      // 🔥 Firebase Web SDK
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
       import {
         getFirestore,
         collection,
         getDocs,
+        doc,
+        updateDoc,
+        onSnapshot
       } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-      // ⚙️ Firebase config (senin Firestore projenin bilgileri)
+      // 🔥 Firestore yapılandırmanı BURAYA gir
       const firebaseConfig = {
-   apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
-    authDomain: "kac-atar.firebaseapp.com",
-    projectId: "kac-atar",
-    storageBucket: "kac-atar.firebasestorage.app",
-    messagingSenderId: "1070494452209",
-    appId: "1:1070494452209:web:e24a9bbd0b4fb543a79c50",
+        apiKey: "SENİN_API_KEY",
+        authDomain: "SENİN_DOMAIN",
+        projectId: "SENİN_PROJECT_ID",
       };
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
+      const matchesRef = collection(db, "matches");
 
-      async function loadTeams() {
-        const container = document.getElementById("teams");
-        container.innerHTML = "<p>Yükleniyor...</p>";
+      const container = document.getElementById("matchesContainer");
 
-        try {
-          const querySnapshot = await getDocs(collection(db, "teams"));
+      // Maçları canlı olarak dinle
+      onSnapshot(
+        matchesRef,
+        (snapshot) => {
           container.innerHTML = "";
+          snapshot.forEach((docSnap) => {
+            const match = docSnap.data();
+            const matchDiv = document.createElement("div");
+            matchDiv.className =
+              "bg-white shadow p-4 rounded-lg flex justify-between items-center";
 
-          querySnapshot.forEach((doc) => {
-            const team = doc.data();
-            const logo = team.logo || "https://via.placeholder.com/100?text=No+Logo";
-            const name = team.name || "Bilinmiyor";
+            const leftTeam = match.homeTeam?.name || "Bilinmiyor";
+            const rightTeam = match.awayTeam?.name || "Bilinmiyor";
+            const score = match.score || "-";
+            const date = match.date || "Tarih yok";
 
-            const card = document.createElement("div");
-            card.className =
-              "team-card border rounded-lg shadow p-3 flex flex-col items-center text-center hover:scale-105 transition-transform";
-            card.innerHTML = `
-              <img src="${logo}" alt="${name}" class="w-20 h-20 object-contain mb-2" />
-              <p class="font-medium text-sm">${name}</p>
+            matchDiv.innerHTML = `
+              <div class="text-left">
+                <p class="font-bold text-lg">${leftTeam} vs ${rightTeam}</p>
+                <p class="text-sm text-gray-500">${date}</p>
+              </div>
+              <div class="text-center">
+                <p class="text-xl font-semibold">${score}</p>
+              </div>
+              <div>
+                <button data-id="${docSnap.id}" class="vote px-3 py-1 bg-blue-500 text-white rounded">Oy Ver</button>
+              </div>
             `;
-            container.appendChild(card);
+            container.appendChild(matchDiv);
           });
-        } catch (err) {
-          console.error("Takımlar alınamadı:", err);
+
+          if (snapshot.empty) {
+            container.innerHTML = "<p>Henüz maç bulunamadı.</p>";
+          }
+        },
+        (err) => {
+          console.error("Maçlar alınamadı:", err);
           container.innerHTML = "<p>Bir hata oluştu.</p>";
         }
-      }
+      );
 
-      window.onload = loadTeams;
+      // Oy verme işlemi
+      document.addEventListener("click", async (e) => {
+        if (e.target.classList.contains("vote")) {
+          const id = e.target.dataset.id;
+          const ref = doc(db, "matches", id);
+          await updateDoc(ref, { votes: (Math.random() * 100) | 0 }); // örnek random vote
+          alert("Oy verildi!");
+        }
+      });
     </script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="bg-gray-100 min-h-screen flex flex-col items-center">
-    <header class="mt-6 mb-4 text-center">
-      <h1 class="text-2xl font-bold text-gray-800">⚽ Takım Logoları</h1>
-      <p class="text-gray-500 text-sm">Firestore'dan canlı olarak yükleniyor</p>
-    </header>
-
-    <main id="teams" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4 w-11/12 max-w-6xl">
-      <!-- Takımlar buraya gelecek -->
-    </main>
   </body>
 </html>
-
-
