@@ -1,53 +1,32 @@
-// /api/update-logos.js
 import fetch from "node-fetch";
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import admin from "firebase-admin";
 
-// ✅ Firestore bağlantısı
-let db;
-if (!getApps().length) {
+if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  const app = initializeApp({ credential: cert(serviceAccount) });
-  db = getFirestore(app);
-} else {
-  db = getFirestore();
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
 }
 
-// ✅ Yardımcı fonksiyon: log yazıcı
-function log(...args) {
-  console.log(new Date().toISOString(), ...args);
-}
+const db = admin.firestore();
 
-// ✅ Google Custom Search üzerinden logo bulucu
-async function searchLogo(teamName) {
-  try {
-    const query = `${teamName} football club logo`;
-    const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(
-      query
-    )}&cx=${process.env.GOOGLE_CX}&key=${process.env.GOOGLE_SEARCH_KEY}&searchType=image&num=1`;
+const SPORTMONKS_API_KEY = process.env.SPORTMONKS_API_KEY;
+const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY;
+const GOOGLE_API_KEY = process.env.GOOGLE_SEARCH_KEY;
+const GOOGLE_CX = process.env.GOOGLE_CX;
 
-    const res = await fetch(url);
-    const data = await res.json();
+// Basit delay (Google rate limit koruması)
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-    if (data.items && data.items.length > 0) {
-      return data.items[0].link; // en üstteki görsel
-    } else {
-      return null;
-    }
-  } catch (err) {
-    log("❌ Logo arama hatası:", err.message);
-    return null;
-  }
-}
-
-// ✅ Ana fonksiyon
 export default async function handler(req, res) {
   try {
-    log("🚀 Logo güncelleme başladı...");
-
-    const snapshot = await db.collection("teams").get();
+    const snapshot = await db.collection("teams").where("logo", "==", null).get();
     if (snapshot.empty) {
-      return res.status(404).json({ error: "Takım bulunamadı (Firestore boş)" });
+      return res.status(200).json({
+        ok: true,
+        message: "Hiç eksik logo yok.",
+        summary: { updated: 0, skipped: 0, errors: 0 },
+      });
     }
 
     let updated = 0;
@@ -57,39 +36,75 @@ export default async function handler(req, res) {
     for (const doc of snapshot.docs) {
       const team = doc.data();
       const teamName = team.name;
+      let logoUrl = null;
 
-      if (!teamName) {
-        skipped++;
-        continue;
+      console.log(`🔍 Logo aranıyor: ${teamName}`);
+
+      // 1️⃣ SportMonks
+      try {
+        const smRes = await fetch(
+          `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(teamName)}?api_token=${SPORTMONKS_API_KEY}`
+        );
+        const smData = await smRes.json();
+        if (smData?.data?.length > 0) {
+          logoUrl = smData.data[0].image_path;
+          console.log(`⚽ SportMonks: ${teamName}`);
+        }
+      } catch {
+        console.warn(`⚠️ SportMonks başarısız: ${teamName}`);
       }
 
-      // Eğer Firestore'da logo varsa tekrar arama yapma
-      if (team.logo) {
-        skipped++;
-        continue;
+      // 2️⃣ TheSportsDB fallback
+      if (!logoUrl) {
+        try {
+          const tsdbRes = await fetch(
+            `https://www.thesportsdb.com/api/v1/json/${THESPORTSDB_KEY}/searchteams.php?t=${encodeURIComponent(teamName)}`
+          );
+          const tsdbData = await tsdbRes.json();
+          if (tsdbData?.teams?.[0]?.strBadge) {
+            logoUrl = tsdbData.teams[0].strBadge;
+            console.log(`🏟️ TheSportsDB: ${teamName}`);
+          }
+        } catch {
+          console.warn(`⚠️ TheSportsDB başarısız: ${teamName}`);
+        }
       }
 
-      const logoUrl = await searchLogo(teamName);
+      // 3️⃣ Google fallback (sadece null'larda)
+      if (!logoUrl && GOOGLE_API_KEY && GOOGLE_CX) {
+        try {
+          await delay(1000);
+          const gRes = await fetch(
+            `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(
+              teamName + " football club logo"
+            )}&searchType=image&num=1&key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}`
+          );
+          const gData = await gRes.json();
+          if (gData?.items?.length > 0) {
+            logoUrl = gData.items[0].link;
+            console.log(`🔵 Google Logo: ${teamName}`);
+          }
+        } catch {
+          console.warn(`⚠️ Google başarısız: ${teamName}`);
+        }
+      }
+
+      // Firestore güncelleme
       if (logoUrl) {
-        await db.collection("teams").doc(doc.id).update({ logo: logoUrl });
+        await doc.ref.update({ logo: logoUrl });
         updated++;
-        log(`🟢 ${teamName}: Logo bulundu.`);
       } else {
-        log(`❌ ${teamName}: Logo bulunamadı.`);
-        errors++;
+        skipped++;
       }
     }
 
-    const result = {
+    res.status(200).json({
       ok: true,
       message: "Logo güncelleme tamamlandı.",
       summary: { updated, skipped, errors },
-    };
-
-    log("✅", result);
-    return res.status(200).json(result);
+    });
   } catch (err) {
-    console.error("🔥 Hata:", err);
-    return res.status(500).json({ error: err.message });
+    console.error("❌ Logo güncelleme hatası:", err);
+    res.status(500).json({ error: err.message });
   }
 }
