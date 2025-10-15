@@ -1,97 +1,193 @@
 <!DOCTYPE html>
 <html lang="tr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>⚽ Maç Listesi</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
-      rel="stylesheet"
-    />
-  </head>
-  <body class="bg-gray-100 min-h-screen">
-    <div class="max-w-4xl mx-auto py-10 px-4">
-      <h1 class="text-3xl font-bold text-center mb-6">⚽ Maçlar</h1>
-      <div id="matchesContainer" class="space-y-4 text-center text-gray-700">
-        <p>Maçlar yükleniyor...</p>
-      </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kaç Atar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+  <!-- Header -->
+  <header class="bg-white shadow sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
+      <h1 class="text-xl font-bold text-blue-600">Kaç Atar</h1>
+      <nav class="flex gap-6 text-gray-600">
+        <a href="#" class="hover:text-blue-600">Maçlar</a>
+        <a href="#" class="hover:text-blue-600">Tahminler</a>
+        <a href="#" class="hover:text-blue-600">Sonuçlar</a>
+      </nav>
     </div>
+  </header>
 
-    <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-      import {
-        getFirestore,
-        collection,
-        getDocs,
-        doc,
-        updateDoc,
-        onSnapshot
-      } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  <!-- Main -->
+  <main class="max-w-3xl mx-auto px-4 py-8">
+    <h2 class="text-3xl font-bold text-center mb-8">Yaklaşan Maçlar</h2>
+    <div id="matches" class="space-y-6"></div>
+  </main>
 
-      // 🔥 Firestore yapılandırmanı BURAYA gir
-      const firebaseConfig = {
- apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
-    authDomain: "kac-atar.firebaseapp.com",
-    projectId: "kac-atar",
-      };
+  <!-- Firebase + JS -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-      const matchesRef = collection(db, "matches");
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+      storageBucket: "kac-atar.firebasestorage.app",
+      messagingSenderId: "1070494452209",
+      appId: "1:1070494452209:web:e24a9bbd0b4fb543a79c50",
+      measurementId: "G-8ZMRLXBX7Z"
+    };
 
-      const container = document.getElementById("matchesContainer");
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    let currentUser = null;
 
-      // Maçları canlı olarak dinle
-      onSnapshot(
-        matchesRef,
-        (snapshot) => {
-          container.innerHTML = "";
-          snapshot.forEach((docSnap) => {
-            const match = docSnap.data();
-            const matchDiv = document.createElement("div");
-            matchDiv.className =
-              "bg-white shadow p-4 rounded-lg flex justify-between items-center";
+    // Anon login
+    signInAnonymously(auth).catch(console.error);
+    onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
 
-            const leftTeam = match.homeTeam?.name || "Bilinmiyor";
-            const rightTeam = match.awayTeam?.name || "Bilinmiyor";
-            const score = match.score || "-";
-            const date = match.date || "Tarih yok";
+    // Yardımcı: tarih parse & format
+    function parseDateField(dateField, timeField) {
+      if (!dateField) return null;
+      if (typeof dateField === "object" && typeof dateField.seconds === "number")
+        return new Date(dateField.seconds * 1000);
+      if (typeof dateField === "string") {
+        let s = dateField;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s) && timeField) s = `${s}T${timeField}`;
+        const d = new Date(s);
+        if (!isNaN(d)) return d;
+      }
+      return null;
+    }
+    function formatMatchDate(match) {
+      const d = parseDateField(match.date, match.time);
+      if (d) return d.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
+      if (match.time && !match.date) return `Saat: ${match.time}`;
+      return "Tarih bilinmiyor";
+    }
 
-            matchDiv.innerHTML = `
-              <div class="text-left">
-                <p class="font-bold text-lg">${leftTeam} vs ${rightTeam}</p>
-                <p class="text-sm text-gray-500">${date}</p>
-              </div>
-              <div class="text-center">
-                <p class="text-xl font-semibold">${score}</p>
-              </div>
-              <div>
-                <button data-id="${docSnap.id}" class="vote px-3 py-1 bg-blue-500 text-white rounded">Oy Ver</button>
-              </div>
-            `;
-            container.appendChild(matchDiv);
-          });
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
 
-          if (snapshot.empty) {
-            container.innerHTML = "<p>Henüz maç bulunamadı.</p>";
-          }
-        },
-        (err) => {
-          console.error("Maçlar alınamadı:", err);
-          container.innerHTML = "<p>Bir hata oluştu.</p>";
-        }
-      );
+    // Maçları yükle
+    async function loadMatches() {
+      const matchesDiv = document.getElementById("matches");
+      matchesDiv.innerHTML = "";
 
-      // Oy verme işlemi
-      document.addEventListener("click", async (e) => {
-        if (e.target.classList.contains("vote")) {
-          const id = e.target.dataset.id;
-          const ref = doc(db, "matches", id);
-          await updateDoc(ref, { votes: (Math.random() * 100) | 0 }); // örnek random vote
-          alert("Oy verildi!");
-        }
+      const querySnapshot = await getDocs(collection(db, "matches"));
+      const matches = [];
+      querySnapshot.forEach((docSnap) => {
+        const m = docSnap.data() || {};
+        m._id = docSnap.id;
+        matches.push(m);
       });
-    </script>
-  </body>
-</html>
 
+      // tarihe göre sırala
+      matches.sort((a, b) => {
+        const da = parseDateField(a.date, a.time);
+        const dbx = parseDateField(b.date, b.time);
+        if (da && dbx) return da - dbx;
+        if (da) return -1;
+        if (dbx) return 1;
+        return (a.home || "").localeCompare(b.home || "");
+      });
+
+      for (const match of matches) {
+        const matchId = match._id;
+        const card = document.createElement("div");
+        card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
+        card.dataset.id = matchId;
+
+        const dateText = formatMatchDate(match);
+        const homeName = match.home || "Bilinmiyor";
+        const awayName = match.away || "Bilinmiyor";
+        const homeLogo = match.homeLogo || "";
+        const awayLogo = match.awayLogo || "";
+        const popularText = match.popularPrediction || "—";
+        const voteCount = match.voteCount || 0;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <img src="${homeLogo}" alt="${homeName}" class="w-10 h-10 rounded-full border">
+              <span class="text-lg font-semibold">${escapeHtml(homeName)}</span>
+            </div>
+            <span class="text-gray-700 font-bold">vs</span>
+            <div class="flex items-center gap-3">
+              <span class="text-lg font-semibold">${escapeHtml(awayName)}</span>
+              <img src="${awayLogo}" alt="${awayName}" class="w-10 h-10 rounded-full border">
+            </div>
+          </div>
+
+          <p class="text-sm text-gray-500 text-center">${dateText}</p>
+
+          <div class="flex justify-center items-center gap-3">
+            <input type="number" placeholder="${homeName}" class="home-score w-20 p-2 border rounded text-center">
+            <span class="font-bold">-</span>
+            <input type="number" placeholder="${awayName}" class="away-score w-20 p-2 border rounded text-center">
+            <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
+          </div>
+
+          <p class="text-sm text-gray-500 text-center">
+            En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
+          </p>
+        `;
+
+        matchesDiv.appendChild(card);
+      }
+    }
+
+    loadMatches();
+
+    // Oy verme
+    document.addEventListener("click", async (e) => {
+      if (e.target.closest(".vote-button")) {
+        const card = e.target.closest(".match-card");
+        const matchId = card.dataset.id;
+        const homeScore = card.querySelector(".home-score").value;
+        const awayScore = card.querySelector(".away-score").value;
+
+        if (!homeScore || !awayScore) return alert("Lütfen skor giriniz");
+        const prediction = `${homeScore}-${awayScore}`;
+
+        try {
+          const matchRef = doc(db, "matches", matchId);
+          const matchSnap = await getDoc(matchRef);
+          if (!matchSnap.exists()) return alert("Maç bulunamadı!");
+
+          await updateDoc(matchRef, { [`votes.${currentUser.uid}`]: prediction });
+
+          const updatedSnap = await getDoc(matchRef);
+          const votes = updatedSnap.data().votes || {};
+          const counts = {};
+          Object.values(votes).forEach((p) => (counts[p] = (counts[p] || 0) + 1));
+
+          let popular = null, maxCount = 0;
+          for (let [score, count] of Object.entries(counts)) {
+            if (count > maxCount) { popular = score; maxCount = count; }
+          }
+
+          await updateDoc(matchRef, { popularPrediction: popular, voteCount: maxCount });
+          alert("Oyun kaydedildi ✅");
+          loadMatches();
+        } catch (err) {
+          console.error("Oy kaydetme hatası:", err);
+          alert("Oy kaydedilemedi ❌");
+        }
+      }
+    });
+  </script>
+</body>
+</html>
