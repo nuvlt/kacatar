@@ -11,13 +11,25 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Takım ismini normalize eden yardımcı fonksiyon
 function normalizeName(name) {
   return name
     ?.toLowerCase()
-    ?.replace(/[^a-z0-9ğüşıöç\s]/gi, "") // özel karakterleri sil
-    ?.replace(/\s+/g, " ") // fazla boşlukları tek boşluk yap
+    ?.replace(/[^a-z0-9ğüşıöç\s]/gi, "")
+    ?.replace(/\b(fc|cf|sc|ac|afc|club|deportivo|calcio|athletic|sporting|real|olympique|atleti)\b/g, "")
+    ?.replace(/\s+/g, " ")
     ?.trim();
+}
+
+// iki ismin birbirine benzer olup olmadığını kaba kontrol eden yardımcı
+function isSimilar(a, b) {
+  if (!a || !b) return false;
+  a = normalizeName(a);
+  b = normalizeName(b);
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  // örn: “man city” vs “manchester city”
+  if (a.startsWith(b.split(" ")[0]) || b.startsWith(a.split(" ")[0])) return true;
+  return false;
 }
 
 export default async function handler(req, res) {
@@ -25,32 +37,23 @@ export default async function handler(req, res) {
     const matchesSnap = await db.collection("matches").get();
     const teamsSnap = await db.collection("teams").get();
 
-    const teamLogos = {};
-    teamsSnap.forEach(doc => {
-      const data = doc.data();
-      const normalized = normalizeName(data?.name);
-      if (normalized) {
-        teamLogos[normalized] = data.logo || null;
-      }
-    });
-
+    const teams = teamsSnap.docs.map(doc => doc.data());
     const missingTeams = new Set();
 
     matchesSnap.forEach(doc => {
       const match = doc.data();
+      [match?.homeTeam, match?.awayTeam].forEach(teamName => {
+        if (!teamName) return;
 
-      const home = normalizeName(match?.homeTeam);
-      const away = normalizeName(match?.awayTeam);
+        const hasLogo = teams.some(
+          t =>
+            isSimilar(t.name, teamName) &&
+            t.logo &&
+            t.logo.startsWith("http")
+        );
 
-      if (home) {
-        const logo = teamLogos[home];
-        if (!logo || !logo.startsWith("http")) missingTeams.add(match.homeTeam);
-      }
-
-      if (away) {
-        const logo = teamLogos[away];
-        if (!logo || !logo.startsWith("http")) missingTeams.add(match.awayTeam);
-      }
+        if (!hasLogo) missingTeams.add(teamName);
+      });
     });
 
     res.status(200).json({
