@@ -1,31 +1,59 @@
 // api/logo-service.js
 // Logo bulma servisi - tüm API'leri yönetir
 
-const fetchFn = (typeof fetch !== "undefined") ? fetch : (...args) => import("node-fetch").then(m => m.default(...args));
-
 // Rate limit koruması için delay
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Takım adını temizle (API aramaları için)
-function cleanTeamName(name) {
+// Manuel isim düzeltmeleri (API'lerde farklı isimlerle kayıtlı takımlar)
+const TEAM_NAME_MAPPINGS = {
+  "como 1907": "Como",
+  "ac milan": "Milan",
+  "ac pisa": "Pisa",
+  "hellas verona": "Verona",
+  "verona": "Hellas Verona",
+  "inter": "Inter Milan",
+  "atalanta": "Atalanta BC",
+  "fiorentina": "ACF Fiorentina",
+  "lazio": "SS Lazio",
+  "torino": "Torino FC",
+  "parma": "Parma Calcio",
+  "genoa": "Genoa CFC",
+  "cremonese": "US Cremonese",
+  "udinese": "Udinese Calcio",
+  "sassuolo": "US Sassuolo",
+  "juventus": "Juventus FC",
+};
+
+// Takım adını temizle ve mapping uygula
+export function cleanTeamName(name) {
   if (!name) return "";
-  return String(name)
+  
+  // Önce normalize et
+  let cleaned = String(name)
     .replace(/\s+FC$|\s+CF$|\s+AC$|\s+SC$|\s+UD$|\s+ACF$|\s+SSC$/i, "")
     .replace(/[^\w\s\-\&\.çğıöşüÇĞİÖŞÜ]/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+  
+  // Manuel mapping kontrol et
+  const lowerName = cleaned.toLowerCase();
+  if (TEAM_NAME_MAPPINGS[lowerName]) {
+    return TEAM_NAME_MAPPINGS[lowerName];
+  }
+  
+  return cleaned;
 }
 
 // 1️⃣ SportMonks API
-async function tryPortMonks(teamName, apiKey) {
+async function trySportMonks(teamName, apiKey) {
   if (!apiKey) return null;
   
   try {
     const cleanName = cleanTeamName(teamName);
     const url = `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(cleanName)}?api_token=${apiKey}`;
     
-    console.log(`🔍 SportMonks: ${teamName}`);
-    const response = await fetchFn(url, { timeout: 8000 });
+    console.log(`🔍 SportMonks: ${teamName} → ${cleanName}`);
+    const response = await fetch(url, { timeout: 8000 });
     
     if (!response.ok) {
       console.warn(`⚠️ SportMonks ${response.status}: ${teamName}`);
@@ -58,8 +86,8 @@ async function trySportsDB(teamName, apiKey) {
     const cleanName = cleanTeamName(teamName);
     const url = `https://www.thesportsdb.com/api/v1/json/${apiKey}/searchteams.php?t=${encodeURIComponent(cleanName)}`;
     
-    console.log(`🔍 TheSportsDB: ${teamName}`);
-    const response = await fetchFn(url, { timeout: 8000 });
+    console.log(`🔍 TheSportsDB: ${teamName} → ${cleanName}`);
+    const response = await fetch(url, { timeout: 8000 });
     
     const text = await response.text();
     
@@ -92,11 +120,12 @@ async function tryGoogleSearch(teamName, apiKey, cx) {
   try {
     await delay(1000); // Google için daha uzun delay
     
-    const query = `${teamName} football club logo`;
+    const cleanName = cleanTeamName(teamName);
+    const query = `${cleanName} football club logo`;
     const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&searchType=image&num=1&key=${apiKey}&cx=${cx}`;
     
-    console.log(`🔍 Google Search: ${teamName}`);
-    const response = await fetchFn(url, { timeout: 10000 });
+    console.log(`🔍 Google Search: ${teamName} → ${cleanName}`);
+    const response = await fetch(url, { timeout: 10000 });
     
     if (!response.ok) {
       console.warn(`⚠️ Google ${response.status}: ${teamName}`);
@@ -117,13 +146,13 @@ async function tryGoogleSearch(teamName, apiKey, cx) {
 }
 
 // Ana logo bulma fonksiyonu - sırayla tüm API'leri dener
-async function findTeamLogo(teamName, apiKeys) {
+export async function findTeamLogo(teamName, apiKeys) {
   const { sportmonks, thesportsdb, googleKey, googleCx } = apiKeys;
   
   console.log(`\n🎯 Logo aranıyor: ${teamName}`);
   
   // 1. SportMonks
-  let logo = await tryPortMonks(teamName, sportmonks);
+  let logo = await trySportMonks(teamName, sportmonks);
   if (logo) return logo;
   
   // 2. TheSportsDB
@@ -137,8 +166,3 @@ async function findTeamLogo(teamName, apiKeys) {
   console.log(`❌ Logo bulunamadı: ${teamName}`);
   return null;
 }
-
-module.exports = {
-  findTeamLogo,
-  cleanTeamName,
-};
