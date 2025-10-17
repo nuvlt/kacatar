@@ -6,10 +6,11 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Manuel isim düzeltmeleri (API'lerde farklı isimlerle kayıtlı takımlar)
 const TEAM_NAME_MAPPINGS = {
+  // İtalyan takımlar
   "como 1907": "Como",
   "ac milan": "Milan",
   "ac pisa": "Pisa",
-  "hellas verona": "Verona",
+  "hellas verona": "Hellas Verona",
   "verona": "Hellas Verona",
   "inter": "Inter Milan",
   "atalanta": "Atalanta BC",
@@ -22,6 +23,60 @@ const TEAM_NAME_MAPPINGS = {
   "udinese": "Udinese Calcio",
   "sassuolo": "US Sassuolo",
   "juventus": "Juventus FC",
+  
+  // İspanyol takımlar
+  "atleti": "Atletico Madrid",
+  "barça": "Barcelona",
+  "alavés": "Deportivo Alaves",
+  "celta": "Celta Vigo",
+  "espanyol": "Espanyol Barcelona",
+  "mallorca": "RCD Mallorca",
+  "osasuna": "CA Osasuna",
+  "rayo vallecano": "Rayo Vallecano",
+  "real betis": "Real Betis",
+  
+  // İngiliz takımlar
+  "man united": "Manchester United",
+  "tottenham": "Tottenham Hotspur",
+  "west ham": "West Ham United",
+  "wolverhampton": "Wolverhampton Wanderers",
+  "brighton hove": "Brighton Hove Albion",
+  
+  // Fransız takımlar
+  "psg": "Paris Saint-Germain",
+  "marseille": "Olympique Marseille",
+  "olympique lyon": "Lyon",
+  "monaco": "AS Monaco",
+  "lille": "Lille OSC",
+  "nice": "OGC Nice",
+  "nantes": "FC Nantes",
+  "rc lens": "RC Lens",
+  "stade rennais": "Rennes",
+  "strasbourg": "RC Strasbourg",
+  "toulouse": "Toulouse FC",
+  "angers sco": "Angers SCO",
+  "auxerre": "AJ Auxerre",
+  "brest": "Stade Brestois",
+  "le havre": "Le Havre AC",
+  "fc metz": "FC Metz",
+  "paris fc": "Paris FC",
+  "lorient": "FC Lorient",
+  
+  // Alman takımlar
+  "bayern": "Bayern Munich",
+  "leverkusen": "Bayer Leverkusen",
+  "bremen": "Werder Bremen",
+  "frankfurt": "Eintracht Frankfurt",
+  "m'gladbach": "Borussia Monchengladbach",
+  "augsburg": "FC Augsburg",
+  "heidenheim": "FC Heidenheim",
+  "hoffenheim": "TSG Hoffenheim",
+  "stuttgart": "VfB Stuttgart",
+  "union berlin": "Union Berlin",
+  "wolfsburg": "VfL Wolfsburg",
+  "hsv": "Hamburger SV",
+  "st. pauli": "FC St Pauli",
+  "1. fc köln": "FC Koln",
 };
 
 // Takım adını temizle ve mapping uygula
