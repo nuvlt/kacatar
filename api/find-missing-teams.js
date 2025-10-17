@@ -17,13 +17,25 @@ export default async function handler(req, res) {
     const teamsSnap = await db.collection("teams").get();
 
     const existingTeams = new Set();
-    teamsSnap.forEach(doc => existingTeams.add(doc.data().name.trim().toLowerCase()));
+    teamsSnap.forEach(doc => {
+      const name = doc.data()?.name;
+      if (name && typeof name === "string") {
+        existingTeams.add(name.trim().toLowerCase());
+      }
+    });
 
     const missingTeams = new Set();
+
     matchesSnap.forEach(doc => {
       const match = doc.data();
-      const home = match.homeTeam?.trim().toLowerCase();
-      const away = match.awayTeam?.trim().toLowerCase();
+
+      // Takım isimlerini güvenli şekilde alıyoruz
+      const home = match?.homeTeam && typeof match.homeTeam === "string"
+        ? match.homeTeam.trim().toLowerCase()
+        : null;
+      const away = match?.awayTeam && typeof match.awayTeam === "string"
+        ? match.awayTeam.trim().toLowerCase()
+        : null;
 
       if (home && !existingTeams.has(home)) missingTeams.add(match.homeTeam);
       if (away && !existingTeams.has(away)) missingTeams.add(match.awayTeam);
@@ -32,7 +44,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       ok: true,
       count: missingTeams.size,
-      missing: [...missingTeams],
+      missing: [...missingTeams].sort(),
     });
   } catch (err) {
     console.error("Error:", err);
