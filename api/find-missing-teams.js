@@ -16,11 +16,13 @@ export default async function handler(req, res) {
     const matchesSnap = await db.collection("matches").get();
     const teamsSnap = await db.collection("teams").get();
 
-    const existingTeams = new Set();
+    // Tüm mevcut takımları (logo dahil) listele
+    const teamLogos = {};
     teamsSnap.forEach(doc => {
-      const name = doc.data()?.name;
-      if (name && typeof name === "string") {
-        existingTeams.add(name.trim().toLowerCase());
+      const data = doc.data();
+      const name = data?.name?.trim()?.toLowerCase();
+      if (name) {
+        teamLogos[name] = data.logo || null; // varsa logo, yoksa null
       }
     });
 
@@ -29,20 +31,29 @@ export default async function handler(req, res) {
     matchesSnap.forEach(doc => {
       const match = doc.data();
 
-      // Takım isimlerini güvenli şekilde alıyoruz
-      const home = match?.homeTeam && typeof match.homeTeam === "string"
-        ? match.homeTeam.trim().toLowerCase()
+      const homeName = match?.homeTeam && typeof match.homeTeam === "string"
+        ? match.homeTeam.trim()
         : null;
-      const away = match?.awayTeam && typeof match.awayTeam === "string"
-        ? match.awayTeam.trim().toLowerCase()
+      const awayName = match?.awayTeam && typeof match.awayTeam === "string"
+        ? match.awayTeam.trim()
         : null;
 
-      if (home && !existingTeams.has(home)) missingTeams.add(match.homeTeam);
-      if (away && !existingTeams.has(away)) missingTeams.add(match.awayTeam);
+      if (homeName) {
+        const key = homeName.toLowerCase();
+        const hasLogo = teamLogos[key] && teamLogos[key].startsWith("http");
+        if (!hasLogo) missingTeams.add(homeName);
+      }
+
+      if (awayName) {
+        const key = awayName.toLowerCase();
+        const hasLogo = teamLogos[key] && teamLogos[key].startsWith("http");
+        if (!hasLogo) missingTeams.add(awayName);
+      }
     });
 
     res.status(200).json({
       ok: true,
+      message: "Eksik logo tespiti tamamlandı",
       count: missingTeams.size,
       missing: [...missingTeams].sort(),
     });
