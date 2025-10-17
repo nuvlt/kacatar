@@ -11,18 +11,26 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// Takım ismini normalize eden yardımcı fonksiyon
+function normalizeName(name) {
+  return name
+    ?.toLowerCase()
+    ?.replace(/[^a-z0-9ğüşıöç\s]/gi, "") // özel karakterleri sil
+    ?.replace(/\s+/g, " ") // fazla boşlukları tek boşluk yap
+    ?.trim();
+}
+
 export default async function handler(req, res) {
   try {
     const matchesSnap = await db.collection("matches").get();
     const teamsSnap = await db.collection("teams").get();
 
-    // Tüm mevcut takımları (logo dahil) listele
     const teamLogos = {};
     teamsSnap.forEach(doc => {
       const data = doc.data();
-      const name = data?.name?.trim()?.toLowerCase();
-      if (name) {
-        teamLogos[name] = data.logo || null; // varsa logo, yoksa null
+      const normalized = normalizeName(data?.name);
+      if (normalized) {
+        teamLogos[normalized] = data.logo || null;
       }
     });
 
@@ -31,23 +39,17 @@ export default async function handler(req, res) {
     matchesSnap.forEach(doc => {
       const match = doc.data();
 
-      const homeName = match?.homeTeam && typeof match.homeTeam === "string"
-        ? match.homeTeam.trim()
-        : null;
-      const awayName = match?.awayTeam && typeof match.awayTeam === "string"
-        ? match.awayTeam.trim()
-        : null;
+      const home = normalizeName(match?.homeTeam);
+      const away = normalizeName(match?.awayTeam);
 
-      if (homeName) {
-        const key = homeName.toLowerCase();
-        const hasLogo = teamLogos[key] && teamLogos[key].startsWith("http");
-        if (!hasLogo) missingTeams.add(homeName);
+      if (home) {
+        const logo = teamLogos[home];
+        if (!logo || !logo.startsWith("http")) missingTeams.add(match.homeTeam);
       }
 
-      if (awayName) {
-        const key = awayName.toLowerCase();
-        const hasLogo = teamLogos[key] && teamLogos[key].startsWith("http");
-        if (!hasLogo) missingTeams.add(awayName);
+      if (away) {
+        const logo = teamLogos[away];
+        if (!logo || !logo.startsWith("http")) missingTeams.add(match.awayTeam);
       }
     });
 
