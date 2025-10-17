@@ -1,8 +1,8 @@
 // api/update-logos.js
 // Eksik logoları toplu günceller (manuel çalıştırma için)
 
-const admin = require("firebase-admin");
-const { findTeamLogo } = require("./logo-service");
+import admin from "firebase-admin";
+import { findTeamLogo } from "./logo-service.js";
 
 // Firebase başlatma
 if (!admin.apps.length) {
@@ -15,7 +15,7 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   try {
     // Auth kontrolü
     const { key } = req.query;
@@ -39,13 +39,19 @@ module.exports = async (req, res) => {
       google: !!apiKeys.googleKey && !!apiKeys.googleCx,
     });
 
-    // Logo'su null veya boş olan takımları bul
-    const snapshot = await db
-      .collection("teams")
-      .where("logo", "in", [null, ""])
-      .get();
+    // Tüm takımları al ve logo'su olmayanları filtrele
+    const allTeamsSnapshot = await db.collection("teams").get();
+    
+    const teamsWithoutLogo = [];
+    allTeamsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      // Logo yoksa veya boşsa veya placeholder'sa
+      if (!data.logo || data.logo === "" || data.logo === "null") {
+        teamsWithoutLogo.push(doc);
+      }
+    });
 
-    if (snapshot.empty) {
+    if (teamsWithoutLogo.length === 0) {
       console.log("✅ Tüm takımların logosu mevcut!");
       return res.status(200).json({
         ok: true,
@@ -53,6 +59,8 @@ module.exports = async (req, res) => {
         stats: { checked: 0, updated: 0, failed: 0 },
       });
     }
+
+    const snapshot = { docs: teamsWithoutLogo, size: teamsWithoutLogo.length };
 
     console.log(`🔍 ${snapshot.size} takım için logo aranacak\n`);
 
@@ -111,4 +119,4 @@ module.exports = async (req, res) => {
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
-};
+}
