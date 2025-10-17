@@ -13,7 +13,7 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   try {
     const { key } = req.query;
     if (key !== process.env.SECRET_KEY) {
