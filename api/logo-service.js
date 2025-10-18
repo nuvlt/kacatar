@@ -240,7 +240,7 @@ async function tryGoogleSearch(teamName, apiKey, cx) {
 }
 
 // Ana logo bulma fonksiyonu - sırayla tüm API'leri dener
-export async function findTeamLogo(teamName, apiKeys) {
+async function findTeamLogo(teamName, apiKeys) {
   const { sportmonks, thesportsdb, googleKey, googleCx } = apiKeys;
   
   console.log(`\n🎯 Logo aranıyor: ${teamName}`);
@@ -274,3 +274,8 @@ export async function findTeamLogo(teamName, apiKeys) {
   console.log(`❌ Logo bulunamadı: ${teamName}`);
   return null;
 }
+
+module.exports = {
+  findTeamLogo,
+  cleanTeamName,
+};
