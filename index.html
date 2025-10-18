@@ -81,71 +81,89 @@
         .replace(/'/g, "&#39;");
     }
 
+    // Placeholder logo URL'i
+    const PLACEHOLDER = "https://via.placeholder.com/40?text=?";
+
     // Maçları yükle
     async function loadMatches() {
       const matchesDiv = document.getElementById("matches");
-      matchesDiv.innerHTML = "";
+      matchesDiv.innerHTML = '<p class="text-center text-gray-500">Maçlar yükleniyor...</p>';
 
-      const querySnapshot = await getDocs(collection(db, "matches"));
-      const matches = [];
-      querySnapshot.forEach((docSnap) => {
-        const m = docSnap.data() || {};
-        m._id = docSnap.id;
-        matches.push(m);
-      });
+      try {
+        const querySnapshot = await getDocs(collection(db, "matches"));
+        const matches = [];
+        querySnapshot.forEach((docSnap) => {
+          const m = docSnap.data() || {};
+          m._id = docSnap.id;
+          matches.push(m);
+        });
 
-      // tarihe göre sırala
-      matches.sort((a, b) => {
-        const da = parseDateField(a.date, a.time);
-        const dbx = parseDateField(b.date, b.time);
-        if (da && dbx) return da - dbx;
-        if (da) return -1;
-        if (dbx) return 1;
-        return (a.home || "").localeCompare(b.home || "");
-      });
+        if (matches.length === 0) {
+          matchesDiv.innerHTML = '<p class="text-center text-gray-500">Henüz maç yok.</p>';
+          return;
+        }
 
-      for (const match of matches) {
-        const matchId = match._id;
-        const card = document.createElement("div");
-        card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
-        card.dataset.id = matchId;
+        // tarihe göre sırala
+        matches.sort((a, b) => {
+          const da = parseDateField(a.date, a.time);
+          const dbx = parseDateField(b.date, b.time);
+          if (da && dbx) return da - dbx;
+          if (da) return -1;
+          if (dbx) return 1;
+          return (a.home || "").localeCompare(b.home || "");
+        });
 
-        const dateText = formatMatchDate(match);
-        const homeName = match.home || "Bilinmiyor";
-        const awayName = match.away || "Bilinmiyor";
-        const homeLogo = match.homeLogo || "";
-        const awayLogo = match.awayLogo || "";
-        const popularText = match.popularPrediction || "—";
-        const voteCount = match.voteCount || 0;
+        matchesDiv.innerHTML = "";
 
-        card.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <img src="${homeLogo}" alt="${homeName}" class="w-10 h-10 rounded-full border">
-              <span class="text-lg font-semibold">${escapeHtml(homeName)}</span>
+        for (const match of matches) {
+          const matchId = match._id;
+          const card = document.createElement("div");
+          card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
+          card.dataset.id = matchId;
+
+          const dateText = formatMatchDate(match);
+          const homeName = match.home || "Bilinmiyor";
+          const awayName = match.away || "Bilinmiyor";
+          
+          // Logo URL'lerini kontrol et - boşsa placeholder kullan
+          const homeLogo = (match.homeLogo && match.homeLogo !== "") ? match.homeLogo : PLACEHOLDER;
+          const awayLogo = (match.awayLogo && match.awayLogo !== "") ? match.awayLogo : PLACEHOLDER;
+          
+          const popularText = match.popularPrediction || "—";
+          const voteCount = match.voteCount || 0;
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img src="${homeLogo}" alt="${escapeHtml(homeName)}" class="w-10 h-10 rounded-full border object-cover" onerror="this.src='${PLACEHOLDER}'">
+                <span class="text-lg font-semibold">${escapeHtml(homeName)}</span>
+              </div>
+              <span class="text-gray-700 font-bold">vs</span>
+              <div class="flex items-center gap-3">
+                <span class="text-lg font-semibold">${escapeHtml(awayName)}</span>
+                <img src="${awayLogo}" alt="${escapeHtml(awayName)}" class="w-10 h-10 rounded-full border object-cover" onerror="this.src='${PLACEHOLDER}'">
+              </div>
             </div>
-            <span class="text-gray-700 font-bold">vs</span>
-            <div class="flex items-center gap-3">
-              <span class="text-lg font-semibold">${escapeHtml(awayName)}</span>
-              <img src="${awayLogo}" alt="${awayName}" class="w-10 h-10 rounded-full border">
+
+            <p class="text-sm text-gray-500 text-center">${dateText}</p>
+
+            <div class="flex justify-center items-center gap-3">
+              <input type="number" placeholder="${homeName}" class="home-score w-20 p-2 border rounded text-center">
+              <span class="font-bold">-</span>
+              <input type="number" placeholder="${awayName}" class="away-score w-20 p-2 border rounded text-center">
+              <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
             </div>
-          </div>
 
-          <p class="text-sm text-gray-500 text-center">${dateText}</p>
+            <p class="text-sm text-gray-500 text-center">
+              En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
+            </p>
+          `;
 
-          <div class="flex justify-center items-center gap-3">
-            <input type="number" placeholder="${homeName}" class="home-score w-20 p-2 border rounded text-center">
-            <span class="font-bold">-</span>
-            <input type="number" placeholder="${awayName}" class="away-score w-20 p-2 border rounded text-center">
-            <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
-          </div>
-
-          <p class="text-sm text-gray-500 text-center">
-            En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
-          </p>
-        `;
-
-        matchesDiv.appendChild(card);
+          matchesDiv.appendChild(card);
+        }
+      } catch (error) {
+        console.error("Maçlar yüklenirken hata:", error);
+        matchesDiv.innerHTML = '<p class="text-center text-red-500">Maçlar yüklenemedi. Lütfen tekrar deneyin.</p>';
       }
     }
 
