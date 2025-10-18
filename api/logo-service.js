@@ -6,36 +6,148 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Manuel logo URL'leri (API'lerde bulunamayan takımlar için)
 const MANUAL_LOGO_URLS = {
+  // Büyük kulüpler
   "psg": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
   "paris saint-germain": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+  "paris saint germain": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+  
   "atleti": "https://upload.wikimedia.org/wikipedia/en/f/f4/Atletico_Madrid_2017_logo.svg",
   "atletico madrid": "https://upload.wikimedia.org/wikipedia/en/f/f4/Atletico_Madrid_2017_logo.svg",
+  
   "barça": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
   "barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
+  "fc barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
+  
   "bayern": "https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg",
   "bayern munich": "https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg",
+  
   "man united": "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg",
   "manchester united": "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg",
+  
   "inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
   "inter milan": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
+  
+  // Fransız kulüpler
   "marseille": "https://upload.wikimedia.org/wikipedia/commons/d/d8/Olympique_Marseille_logo.svg",
   "olympique marseille": "https://upload.wikimedia.org/wikipedia/commons/d/d8/Olympique_Marseille_logo.svg",
+  
   "lyon": "https://upload.wikimedia.org/wikipedia/en/e/e2/Olympique_Lyonnais_logo.svg",
   "olympique lyon": "https://upload.wikimedia.org/wikipedia/en/e/e2/Olympique_Lyonnais_logo.svg",
+  
   "monaco": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo_AS_Monaco_FC_%282013%29.svg",
   "as monaco": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo_AS_Monaco_FC_%282013%29.svg",
+  
   "lille": "https://upload.wikimedia.org/wikipedia/en/6/68/Lille_OSC_logo_%282018%29.svg",
   "lille osc": "https://upload.wikimedia.org/wikipedia/en/6/68/Lille_OSC_logo_%282018%29.svg",
+  
   "nice": "https://upload.wikimedia.org/wikipedia/en/a/a5/OGC_Nice_logo.svg",
   "ogc nice": "https://upload.wikimedia.org/wikipedia/en/a/a5/OGC_Nice_logo.svg",
+  
+  "nantes": "https://upload.wikimedia.org/wikipedia/commons/8/8f/FC_Nantes_logo.svg",
+  "fc nantes": "https://upload.wikimedia.org/wikipedia/commons/8/8f/FC_Nantes_logo.svg",
+  
+  "rc lens": "https://upload.wikimedia.org/wikipedia/en/d/d3/RC_Lens_logo.svg",
+  "lens": "https://upload.wikimedia.org/wikipedia/en/d/d3/RC_Lens_logo.svg",
+  
+  "stade rennais": "https://upload.wikimedia.org/wikipedia/en/a/a2/Stade_Rennais_F.C._logo.svg",
+  "rennes": "https://upload.wikimedia.org/wikipedia/en/a/a2/Stade_Rennais_F.C._logo.svg",
+  
+  "strasbourg": "https://upload.wikimedia.org/wikipedia/commons/7/77/Racing_Club_Strasbourg_Alsace_%28logo%2C_2020%29.svg",
+  "rc strasbourg": "https://upload.wikimedia.org/wikipedia/commons/7/77/Racing_Club_Strasbourg_Alsace_%28logo%2C_2020%29.svg",
+  
+  "toulouse": "https://upload.wikimedia.org/wikipedia/commons/5/56/Toulouse_FC_2018_logo.svg",
+  "toulouse fc": "https://upload.wikimedia.org/wikipedia/commons/5/56/Toulouse_FC_2018_logo.svg",
+  
+  "angers sco": "https://upload.wikimedia.org/wikipedia/en/3/30/Angers_SCO_%28logo%2C_2021%29.svg",
+  "angers": "https://upload.wikimedia.org/wikipedia/en/3/30/Angers_SCO_%28logo%2C_2021%29.svg",
+  
+  "auxerre": "https://upload.wikimedia.org/wikipedia/en/2/22/AJ_Auxerre_Logo.svg",
+  "aj auxerre": "https://upload.wikimedia.org/wikipedia/en/2/22/AJ_Auxerre_Logo.svg",
+  
+  "brest": "https://upload.wikimedia.org/wikipedia/en/9/90/Stade_Brestois_29_logo.svg",
+  "stade brestois": "https://upload.wikimedia.org/wikipedia/en/9/90/Stade_Brestois_29_logo.svg",
+  
+  "le havre": "https://upload.wikimedia.org/wikipedia/commons/8/8c/Le_Havre_AC_logo.svg",
+  "le havre ac": "https://upload.wikimedia.org/wikipedia/commons/8/8c/Le_Havre_AC_logo.svg",
+  
+  "paris fc": "https://upload.wikimedia.org/wikipedia/en/5/5e/Paris_FC_logo_%282020%29.svg",
+  
+  "lorient": "https://upload.wikimedia.org/wikipedia/commons/d/db/FC_Lorient_Logo.svg",
+  "fc lorient": "https://upload.wikimedia.org/wikipedia/commons/d/db/FC_Lorient_Logo.svg",
+  
+  // Alman kulüpler
   "leverkusen": "https://upload.wikimedia.org/wikipedia/en/5/59/Bayer_04_Leverkusen_logo.svg",
   "bayer leverkusen": "https://upload.wikimedia.org/wikipedia/en/5/59/Bayer_04_Leverkusen_logo.svg",
+  
+  "bremen": "https://upload.wikimedia.org/wikipedia/commons/b/be/SV-Werder-Bremen-Logo.svg",
+  "werder bremen": "https://upload.wikimedia.org/wikipedia/commons/b/be/SV-Werder-Bremen-Logo.svg",
+  
+  "frankfurt": "https://upload.wikimedia.org/wikipedia/commons/0/04/Eintracht_Frankfurt_Logo.svg",
+  "eintracht frankfurt": "https://upload.wikimedia.org/wikipedia/commons/0/04/Eintracht_Frankfurt_Logo.svg",
+  
+  "m'gladbach": "https://upload.wikimedia.org/wikipedia/commons/8/81/Borussia_M%C3%B6nchengladbach_logo.svg",
+  "borussia monchengladbach": "https://upload.wikimedia.org/wikipedia/commons/8/81/Borussia_M%C3%B6nchengladbach_logo.svg",
+  
+  "augsburg": "https://upload.wikimedia.org/wikipedia/en/2/2a/FC_Augsburg_logo.svg",
+  "fc augsburg": "https://upload.wikimedia.org/wikipedia/en/2/2a/FC_Augsburg_logo.svg",
+  
+  "heidenheim": "https://upload.wikimedia.org/wikipedia/commons/3/34/1._FC_Heidenheim_1846_logo.svg",
+  "fc heidenheim": "https://upload.wikimedia.org/wikipedia/commons/3/34/1._FC_Heidenheim_1846_logo.svg",
+  
+  "hoffenheim": "https://upload.wikimedia.org/wikipedia/commons/e/e7/TSG_1899_Hoffenheim_logo.svg",
+  "tsg hoffenheim": "https://upload.wikimedia.org/wikipedia/commons/e/e7/TSG_1899_Hoffenheim_logo.svg",
+  
+  "stuttgart": "https://upload.wikimedia.org/wikipedia/commons/e/eb/VfB_Stuttgart_1893_Logo.svg",
+  "vfb stuttgart": "https://upload.wikimedia.org/wikipedia/commons/e/eb/VfB_Stuttgart_1893_Logo.svg",
+  
+  "union berlin": "https://upload.wikimedia.org/wikipedia/commons/e/e9/FC_Union_Berlin_logo.svg",
+  "fc union berlin": "https://upload.wikimedia.org/wikipedia/commons/e/e9/FC_Union_Berlin_logo.svg",
+  
+  "wolfsburg": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Logo-VfL-Wolfsburg.svg",
+  "vfl wolfsburg": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Logo-VfL-Wolfsburg.svg",
+  
+  "hsv": "https://upload.wikimedia.org/wikipedia/commons/6/66/HSV-Logo.svg",
+  "hamburger sv": "https://upload.wikimedia.org/wikipedia/commons/6/66/HSV-Logo.svg",
+  
+  "st. pauli": "https://upload.wikimedia.org/wikipedia/commons/e/e9/FC_St._Pauli_logo.svg",
+  "fc st pauli": "https://upload.wikimedia.org/wikipedia/commons/e/e9/FC_St._Pauli_logo.svg",
+  
+  // İspanyol kulüpler
+  "espanyol": "https://upload.wikimedia.org/wikipedia/en/a/a7/RCD_Espanyol_logo.svg",
+  "rcd espanyol": "https://upload.wikimedia.org/wikipedia/en/a/a7/RCD_Espanyol_logo.svg",
+  
+  "rayo vallecano": "https://upload.wikimedia.org/wikipedia/en/c/c3/Rayo_Vallecano_logo.svg",
+  
+  "real betis": "https://upload.wikimedia.org/wikipedia/en/1/13/Real_Betis_logo.svg",
+  
+  "mallorca": "https://upload.wikimedia.org/wikipedia/en/e/e0/RCD_Mallorca_logo.svg",
+  "rcd mallorca": "https://upload.wikimedia.org/wikipedia/en/e/e0/RCD_Mallorca_logo.svg",
+  
+  "osasuna": "https://upload.wikimedia.org/wikipedia/en/d/d0/Club_Atletico_Osasuna_logo.svg",
+  "ca osasuna": "https://upload.wikimedia.org/wikipedia/en/d/d0/Club_Atletico_Osasuna_logo.svg",
+  
+  "celta": "https://upload.wikimedia.org/wikipedia/en/1/12/RC_Celta_de_Vigo_logo.svg",
+  "celta vigo": "https://upload.wikimedia.org/wikipedia/en/1/12/RC_Celta_de_Vigo_logo.svg",
+  
+  "alavés": "https://upload.wikimedia.org/wikipedia/en/7/70/Deportivo_Alaves_logo.svg",
+  "deportivo alaves": "https://upload.wikimedia.org/wikipedia/en/7/70/Deportivo_Alaves_logo.svg",
+  
+  // İngiliz kulüpler
   "tottenham": "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg",
   "tottenham hotspur": "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg",
+  
   "west ham": "https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg",
   "west ham united": "https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg",
-  "wolverhampton": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
-  "wolves": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
+  
+  "brighton hove": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
+  "brighton": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
+  
+  // İtalyan kulüpler
+  "verona": "https://upload.wikimedia.org/wikipedia/en/4/42/Hellas_Verona_FC_logo.svg",
+  "hellas verona": "https://upload.wikimedia.org/wikipedia/en/4/42/Hellas_Verona_FC_logo.svg",
+  
+  "ac pisa": "https://upload.wikimedia.org/wikipedia/commons/4/47/Pisa_Sporting_Club_logo.svg",
+  "pisa": "https://upload.wikimedia.org/wikipedia/commons/4/47/Pisa_Sporting_Club_logo.svg",
 };
 
 // Manuel isim düzeltmeleri (API'lerde farklı isimlerle kayıtlı takımlar)
@@ -254,12 +366,26 @@ export async function findTeamLogo(teamName, apiKeys) {
   
   console.log(`\n🎯 Logo aranıyor: ${teamName}`);
   
-  // 1. SportMonks
-  let logo = await trySportMonks(teamName, sportmonks);
-  if (logo) return logo;
+  // 0. Manuel URL'lere bak
+  const lowerName = teamName.toLowerCase().trim();
+  const cleanedLower = cleanTeamName(teamName).toLowerCase();
+  
+  if (MANUAL_LOGO_URLS[lowerName]) {
+    console.log(`✅ Manuel URL bulundu: ${teamName}`);
+    return MANUAL_LOGO_URLS[lowerName];
+  }
+  
+  if (MANUAL_LOGO_URLS[cleanedLower]) {
+    console.log(`✅ Manuel URL bulundu (cleaned): ${teamName}`);
+    return MANUAL_LOGO_URLS[cleanedLower];
+  }
+  
+  // 1. SportMonks (free plan'da çalışmıyor, skip)
+  // let logo = await trySportMonks(teamName, sportmonks);
+  // if (logo) return logo;
   
   // 2. TheSportsDB
-  logo = await trySportsDB(teamName, thesportsdb);
+  let logo = await trySportsDB(teamName, thesportsdb);
   if (logo) return logo;
   
   // 3. Google (son çare)
