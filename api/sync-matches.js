@@ -33,7 +33,7 @@ async function getTeamLogo(teamName, apiKeys) {
     // Varsa cache'den dön
     if (!snapshot.empty) {
       const teamData = snapshot.docs[0].data();
-      console.log(`💾 Cache'den alındı: ${teamName}`);
+      console.log(`💾 Cache'den alındı: ${teamName} → ${teamData.logo ? "✅" : "❌"}`);
       return teamData.logo || null;
     }
     
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
         if (homeLogo) cachedTeams++; else newTeams++;
         if (awayLogo) cachedTeams++; else newTeams++;
 
-        // Firestore'a kaydet
+        // Firestore'a kaydet - SADECE homeLogo ve awayLogo field'ları
         const matchData = {
           competition: comp,
           league: comp,
@@ -164,9 +164,9 @@ export default async function handler(req, res) {
 
         const docId = match.id ? String(match.id) : `${comp}-${homeTeam}-${awayTeam}`.replace(/\s+/g, "_");
         
-        await db.collection("matches").doc(docId).set(matchData, { merge: true });
+        await db.collection("matches").doc(docId).set(matchData, { merge: false });
         
-        console.log(`✅ ${homeTeam} vs ${awayTeam}`);
+        console.log(`✅ ${homeTeam} (${homeLogo ? "✓" : "✗"}) vs ${awayTeam} (${awayLogo ? "✓" : "✗"})`);
         totalMatches++;
       }
     }
