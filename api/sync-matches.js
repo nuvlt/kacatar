@@ -1,10 +1,8 @@
 // api/sync-matches.js
 // Maçları çeker ve logoları Firestore'dan alır (cache)
 
-const admin = require("firebase-admin");
-const { findTeamLogo } = require("./logo-service");
-
-const fetchFn = (typeof fetch !== "undefined") ? fetch : (...args) => import("node-fetch").then(m => m.default(...args));
+import admin from "firebase-admin";
+import { findTeamLogo } from "./logo-service.js";
 
 // Firebase başlatma
 if (!admin.apps.length) {
@@ -61,7 +59,7 @@ async function getTeamLogo(teamName, apiKeys) {
   }
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   try {
     // Auth kontrolü
     const { key } = req.query;
@@ -75,7 +73,7 @@ module.exports = async (req, res) => {
       sportmonks: process.env.SPORTMONKS_API_KEY,
       thesportsdb: process.env.THESPORTSDB_KEY,
       googleKey: process.env.GOOGLE_SEARCH_KEY,
-      googleCx: process.env.GOOGLE_CX,
+      googleCx: process.env.GOOGLE_SEARCH_CX || process.env.GOOGLE_CX,
     };
 
     console.log("\n🚀 Sync başlatılıyor...");
@@ -117,9 +115,8 @@ module.exports = async (req, res) => {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
       
       console.log(`\n📡 Fetching: ${comp}`);
-      const response = await fetchFn(url, {
+      const response = await fetch(url, {
         headers: { "X-Auth-Token": FOOTBALL_API_KEY },
-        timeout: 15000,
       });
 
       if (!response.ok) {
@@ -195,4 +192,4 @@ module.exports = async (req, res) => {
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
-};
+}
