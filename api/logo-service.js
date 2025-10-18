@@ -139,28 +139,42 @@ async function trySportsDB(teamName, apiKey) {
     await delay(300); // Rate limit koruması
     
     const cleanName = cleanTeamName(teamName);
-    const url = `https://www.thesportsdb.com/api/v1/json/${apiKey}/searchteams.php?t=${encodeURIComponent(cleanName)}`;
     
-    console.log(`🔍 TheSportsDB: ${teamName} → ${cleanName}`);
-    const response = await fetch(url, { timeout: 8000 });
+    // Birden fazla isim varyasyonu dene
+    const namesToTry = [
+      cleanName,
+      cleanName.replace(/-/g, " "), // Tire yerine boşluk
+      cleanName.replace(/ /g, "-"),  // Boşluk yerine tire
+    ];
     
-    const text = await response.text();
-    
-    // HTML dönerse (rate limit) skip et
-    if (text.startsWith("<") || text.startsWith("<!")) {
-      console.warn(`⚠️ TheSportsDB HTML döndü: ${teamName}`);
-      return null;
-    }
-    
-    const data = JSON.parse(text);
-    
-    if (data?.teams?.[0]) {
-      const logo = data.teams[0].strTeamBadge || data.teams[0].strTeamLogo || data.teams[0].strBadge;
-      if (logo) {
-        console.log(`✅ TheSportsDB buldu: ${teamName}`);
-        return logo;
+    for (const searchName of namesToTry) {
+      const url = `https://www.thesportsdb.com/api/v1/json/${apiKey}/searchteams.php?t=${encodeURIComponent(searchName)}`;
+      
+      console.log(`🔍 TheSportsDB: ${teamName} → ${searchName}`);
+      const response = await fetch(url, { timeout: 8000 });
+      
+      const text = await response.text();
+      
+      // HTML dönerse (rate limit) skip et
+      if (text.startsWith("<") || text.startsWith("<!")) {
+        console.warn(`⚠️ TheSportsDB HTML döndü: ${teamName}`);
+        continue;
       }
+      
+      const data = JSON.parse(text);
+      
+      if (data?.teams?.[0]) {
+        const logo = data.teams[0].strTeamBadge || data.teams[0].strTeamLogo || data.teams[0].strBadge;
+        if (logo) {
+          console.log(`✅ TheSportsDB buldu: ${teamName} (${searchName})`);
+          return logo;
+        }
+      }
+      
+      // Bulunamazsa bir sonraki varyasyonu dene
+      await delay(200);
     }
+    
   } catch (error) {
     console.warn(`❌ TheSportsDB error: ${teamName}`, error.message);
   }
