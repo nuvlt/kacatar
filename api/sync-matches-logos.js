@@ -53,15 +53,22 @@ export default async function handler(req, res) {
     
     teamsSnapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.nameLower) {
-        teamsMap.set(data.nameLower, data.logo || null);
-      }
-      // Alternatif isimler için de kaydet
+      
+      // Orijinal isim (lowercase)
       if (data.name) {
+        const nameLower = data.name.toLowerCase().trim();
+        teamsMap.set(nameLower, data.logo || null);
+        
+        // Normalize edilmiş isim
         const normalized = normalizeTeamName(data.name);
-        if (normalized) {
+        if (normalized && normalized !== nameLower) {
           teamsMap.set(normalized, data.logo || null);
         }
+      }
+      
+      // nameLower field'ı varsa onu da ekle
+      if (data.nameLower) {
+        teamsMap.set(data.nameLower, data.logo || null);
       }
     });
     
