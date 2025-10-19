@@ -12,96 +12,152 @@
 </head>
 <body class="bg-gray-50">
 
-  <!-- Header -->
-  <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold">🔐 Admin Panel</h1>
-        <p class="text-sm text-blue-100">Logo Yönetimi & Güncelleme</p>
+  <!-- Login Screen -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">🔐</div>
+        <h1 class="text-3xl font-bold text-gray-800">Admin Panel</h1>
+        <p class="text-gray-500 mt-2">Logo Yönetim Sistemi</p>
       </div>
-      <div class="text-right">
-        <div class="text-sm">Toplam Maç: <span id="totalMatches" class="font-bold">-</span></div>
-        <div class="text-sm">Eksik Logo: <span id="missingCount" class="font-bold text-red-300">-</span></div>
-      </div>
-    </div>
-  </header>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Kullanıcı Adı</label>
+          <input 
+            type="text" 
+            id="loginUsername" 
+            placeholder="admin"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onkeypress="if(event.key==='Enter') document.getElementById('loginPassword').focus()"
+          >
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Şifre</label>
+          <input 
+            type="password" 
+            id="loginPassword" 
+            placeholder="••••••••"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onkeypress="if(event.key==='Enter') attemptLogin()"
+          >
+        </div>
 
-  <!-- Filter Bar -->
-  <div class="max-w-7xl mx-auto px-6 py-4">
-    <div class="bg-white rounded-lg shadow p-4 flex gap-4 items-center">
-      <div class="flex-1">
-        <input 
-          type="text" 
-          id="searchInput" 
-          placeholder="🔍 Takım adı ara..." 
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+
+        <button 
+          onclick="attemptLogin()" 
+          class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105"
         >
-      </div>
-      <div class="flex gap-2">
-        <button onclick="filterMatches('all')" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300">
-          Tümü
-        </button>
-        <button onclick="filterMatches('missing')" class="filter-btn px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200">
-          Eksikler
-        </button>
-        <button onclick="filterMatches('complete')" class="filter-btn px-4 py-2 rounded-lg bg-green-100 text-green-700 hover:bg-green-200">
-          Tamamlar
+          🚀 Giriş Yap
         </button>
       </div>
-      <button onclick="loadMatches()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
-        🔄 Yenile
-      </button>
+
+      <div class="mt-6 text-center text-xs text-gray-400">
+        <p>🔒 Güvenli Giriş</p>
+      </div>
     </div>
   </div>
 
-  <!-- Matches Grid -->
-  <main class="max-w-7xl mx-auto px-6 pb-8">
-    <div id="matchesContainer" class="grid gap-4">
-      <div class="text-center text-gray-500 py-8">
-        <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div>
-        <p>Maçlar yükleniyor...</p>
-      </div>
-    </div>
-  </main>
-
-  <!-- Edit Modal -->
-  <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-      <h3 class="text-xl font-bold mb-4">📝 Logo Güncelle</h3>
-      
-      <div class="mb-4">
-        <label class="block text-sm font-semibold text-gray-700 mb-2">Takım Adı</label>
-        <input type="text" id="editTeamName" readonly class="w-full px-4 py-2 bg-gray-100 rounded-lg">
-      </div>
-
-      <div class="mb-4">
-        <label class="block text-sm font-semibold text-gray-700 mb-2">Logo URL</label>
-        <input 
-          type="url" 
-          id="editLogoUrl" 
-          placeholder="https://example.com/logo.png" 
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-        >
-        <p class="text-xs text-gray-500 mt-1">💡 İpucu: Wikipedia'dan logo URL'i alabilirsiniz</p>
-      </div>
-
-      <div class="mb-4">
-        <label class="block text-sm font-semibold text-gray-700 mb-2">Önizleme</label>
-        <div class="flex justify-center p-4 bg-gray-50 rounded-lg">
-          <img id="previewImage" src="" alt="Preview" class="w-24 h-24 object-contain" style="display:none;">
-          <div id="previewPlaceholder" class="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-            🖼️
+  <!-- Main Panel (Hidden by default) -->
+  <div id="mainPanel" class="hidden">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold">🔐 Admin Panel</h1>
+          <p class="text-sm text-blue-100">Logo Yönetimi & Güncelleme</p>
+        </div>
+        <div class="flex items-center gap-6">
+          <div class="text-right">
+            <div class="text-sm">Toplam Maç: <span id="totalMatches" class="font-bold">-</span></div>
+            <div class="text-sm">Eksik Logo: <span id="missingCount" class="font-bold text-red-300">-</span></div>
           </div>
+          <button onclick="logout()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
+            🚪 Çıkış
+          </button>
         </div>
       </div>
+    </header>
 
-      <div class="flex gap-3">
-        <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
-          İptal
+    <!-- Filter Bar -->
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="bg-white rounded-lg shadow p-4 flex gap-4 items-center">
+        <div class="flex-1">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="🔍 Takım adı ara..." 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+        </div>
+        <div class="flex gap-2">
+          <button onclick="filterMatches('all')" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 ring-2 ring-blue-500 font-bold">
+            Tümü
+          </button>
+          <button onclick="filterMatches('missing')" class="filter-btn px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200">
+            Eksikler
+          </button>
+          <button onclick="filterMatches('complete')" class="filter-btn px-4 py-2 rounded-lg bg-green-100 text-green-700 hover:bg-green-200">
+            Tamamlar
+          </button>
+        </div>
+        <button onclick="loadMatches()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          🔄 Yenile
         </button>
-        <button onclick="saveLogoUpdate()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
-          💾 Kaydet
-        </button>
+      </div>
+    </div>
+
+    <!-- Matches Grid -->
+    <main class="max-w-7xl mx-auto px-6 pb-8">
+      <div id="matchesContainer" class="grid gap-4">
+        <div class="text-center text-gray-500 py-8">
+          <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div>
+          <p>Maçlar yükleniyor...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-xl font-bold mb-4">📝 Logo Güncelle</h3>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Takım Adı</label>
+          <input type="text" id="editTeamName" readonly class="w-full px-4 py-2 bg-gray-100 rounded-lg">
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Logo URL</label>
+          <input 
+            type="url" 
+            id="editLogoUrl" 
+            placeholder="https://example.com/logo.png" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">💡 İpucu: Wikipedia'dan logo URL'i alabilirsiniz</p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Önizleme</label>
+          <div class="flex justify-center p-4 bg-gray-50 rounded-lg">
+            <img id="previewImage" src="" alt="Preview" class="w-24 h-24 object-contain" style="display:none;">
+            <div id="previewPlaceholder" class="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
+              🖼️
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+            İptal
+          </button>
+          <button onclick="saveLogoUpdate()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+            💾 Kaydet
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -119,12 +175,56 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // Login credentials (şifreleri değiştirebilirsiniz)
+    const ADMIN_USERS = {
+      'admin': 'kacatar2025',
+      'yonetici': 'logo123',
+    };
+
     let allMatches = [];
     let currentFilter = 'all';
     let editingMatch = null;
-    let editingTeamType = null; // 'home' or 'away'
+    let editingTeamType = null;
 
     const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23fee2e2'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%23dc2626'%3E%3F%3C/text%3E%3C/svg%3E";
+
+    // Login attempt
+    window.attemptLogin = function() {
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errorDiv = document.getElementById('loginError');
+
+      if (ADMIN_USERS[username] && ADMIN_USERS[username] === password) {
+        // Success
+        sessionStorage.setItem('adminLoggedIn', 'true');
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('mainPanel').classList.remove('hidden');
+        loadMatches();
+      } else {
+        // Failed
+        errorDiv.textContent = '❌ Kullanıcı adı veya şifre hatalı!';
+        errorDiv.classList.remove('hidden');
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginPassword').focus();
+      }
+    };
+
+    // Logout
+    window.logout = function() {
+      if (confirm('🚪 Çıkış yapmak istediğinize emin misiniz?')) {
+        sessionStorage.removeItem('adminLoggedIn');
+        document.getElementById('mainPanel').classList.add('hidden');
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+      }
+    };
+
+    // Check if already logged in
+    if (sessionStorage.getItem('adminLoggedIn') === 'true') {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainPanel').classList.remove('hidden');
+    }
 
     // Load matches
     window.loadMatches = async function() {
@@ -141,7 +241,6 @@
           allMatches.push(match);
         });
 
-        // Sort by date
         allMatches.sort((a, b) => {
           const dateA = new Date(a.date || a.time || 0);
           const dateB = new Date(b.date || b.time || 0);
@@ -156,7 +255,6 @@
       }
     };
 
-    // Update statistics
     function updateStats() {
       const missingCount = allMatches.reduce((count, match) => {
         const homeMissing = !match.homeLogo || match.homeLogo === "";
@@ -168,7 +266,6 @@
       document.getElementById('missingCount').textContent = missingCount;
     }
 
-    // Render matches
     function renderMatches() {
       const container = document.getElementById('matchesContainer');
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -178,11 +275,9 @@
         const awayMissing = !match.awayLogo || match.awayLogo === "";
         const hasMissing = homeMissing || awayMissing;
 
-        // Filter by status
         if (currentFilter === 'missing' && !hasMissing) return false;
         if (currentFilter === 'complete' && hasMissing) return false;
 
-        // Search filter
         if (searchTerm) {
           const home = (match.home || "").toLowerCase();
           const away = (match.away || "").toLowerCase();
@@ -215,7 +310,6 @@
             </div>
             
             <div class="grid grid-cols-3 gap-4 items-center">
-              <!-- Home Team -->
               <div class="text-center">
                 <div class="flex justify-center mb-2">
                   <img 
@@ -230,12 +324,10 @@
                 ${!homeLogo ? '<p class="text-xs text-red-500 font-semibold">❌ Logo eksik</p>' : '<p class="text-xs text-green-500">✅</p>'}
               </div>
 
-              <!-- VS -->
               <div class="text-center">
                 <span class="text-2xl font-bold text-gray-400">VS</span>
               </div>
 
-              <!-- Away Team -->
               <div class="text-center">
                 <div class="flex justify-center mb-2">
                   <img 
@@ -255,11 +347,9 @@
       }).join('');
     }
 
-    // Filter matches
     window.filterMatches = function(filter) {
       currentFilter = filter;
       
-      // Update button styles
       document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('ring-2', 'ring-blue-500', 'font-bold');
       });
@@ -268,10 +358,8 @@
       renderMatches();
     };
 
-    // Search
     document.getElementById('searchInput').addEventListener('input', renderMatches);
 
-    // Open edit modal
     window.openEditModal = function(matchId, teamType) {
       const match = allMatches.find(m => m._id === matchId);
       if (!match) return;
@@ -297,14 +385,12 @@
       document.getElementById('editModal').classList.remove('hidden');
     };
 
-    // Close modal
     window.closeModal = function() {
       document.getElementById('editModal').classList.add('hidden');
       editingMatch = null;
       editingTeamType = null;
     };
 
-    // Preview logo
     document.getElementById('editLogoUrl').addEventListener('input', (e) => {
       const url = e.target.value.trim();
       const preview = document.getElementById('previewImage');
@@ -320,7 +406,6 @@
       }
     });
 
-    // Save logo update
     window.saveLogoUpdate = async function() {
       if (!editingMatch || !editingTeamType) return;
 
@@ -333,7 +418,6 @@
       }
 
       try {
-        // 1. Update teams collection
         const teamRef = doc(db, "teams", teamName.toLowerCase().replace(/\s+/g, '-'));
         await setDoc(teamRef, {
           name: teamName,
@@ -342,12 +426,10 @@
           lastUpdated: new Date().toISOString(),
         }, { merge: true });
 
-        // 2. Update this match
         const matchRef = doc(db, "matches", editingMatch._id);
         const updateField = editingTeamType === 'home' ? 'homeLogo' : 'awayLogo';
         await updateDoc(matchRef, { [updateField]: newLogoUrl });
 
-        // 3. Update all matches with this team
         const allMatchesSnapshot = await getDocs(collection(db, "matches"));
         const batch = [];
         
@@ -380,9 +462,6 @@
         alert('❌ Kaydetme hatası: ' + error.message);
       }
     };
-
-    // Initial load
-    loadMatches();
   </script>
 </body>
 </html>
