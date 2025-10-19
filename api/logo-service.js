@@ -37,8 +37,8 @@ const MANUAL_LOGO_URLS = {
   "aj auxerre": "https://upload.wikimedia.org/wikipedia/en/thumb/2/22/AJ_Auxerre_Logo.svg/100px-AJ_Auxerre_Logo.svg.png",
   "le havre": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Le_Havre_AC_logo_%282024%29.svg/100px-Le_Havre_AC_logo_%282024%29.svg.png",
   "le havre ac": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Le_Havre_AC_logo_%282024%29.svg/100px-Le_Havre_AC_logo_%282024%29.svg.png",
-  "lorient": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/FC_Lorient_logo_%282010%29.svg/100px-FC_Lorient_logo_%282010%29.svg.png",
-  "fc lorient": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/FC_Lorient_logo_%282010%29.svg/100px-FC_Lorient_logo_%282010%29.svg.png",
+  "lorient": "https://upload.wikimedia.org/wikipedia/fr/thumb/d/db/FC_Lorient_2010_logo.svg/100px-FC_Lorient_2010_logo.svg.png",
+  "fc lorient": "https://upload.wikimedia.org/wikipedia/fr/thumb/d/db/FC_Lorient_2010_logo.svg/100px-FC_Lorient_2010_logo.svg.png",
   "angers": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Logo_Angers_SCO_2020.svg/100px-Logo_Angers_SCO_2020.svg.png",
   "angers sco": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Logo_Angers_SCO_2020.svg/100px-Logo_Angers_SCO_2020.svg.png",
   "toulouse": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Toulouse_FC_2018_logo.svg/100px-Toulouse_FC_2018_logo.svg.png",
@@ -61,13 +61,13 @@ const MANUAL_LOGO_URLS = {
   "monaco": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Logo_AS_Monaco_FC_%282013%29.svg/100px-Logo_AS_Monaco_FC_%282013%29.svg.png",
   "as monaco": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Logo_AS_Monaco_FC_%282013%29.svg/100px-Logo_AS_Monaco_FC_%282013%29.svg.png",
   
-  // Alman takımlar - eksik olanlar
+  // Alman takımlar - düzeltilmiş URL'ler
   "bremen": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/SV-Werder-Bremen-Logo.svg/100px-SV-Werder-Bremen-Logo.svg.png",
   "werder bremen": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/SV-Werder-Bremen-Logo.svg/100px-SV-Werder-Bremen-Logo.svg.png",
   "frankfurt": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Eintracht_Frankfurt_Logo.svg/100px-Eintracht_Frankfurt_Logo.svg.png",
   "eintracht frankfurt": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Eintracht_Frankfurt_Logo.svg/100px-Eintracht_Frankfurt_Logo.svg.png",
-  "hoffenheim": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/TSG_1899_Hoffenheim_logo.svg/100px-TSG_1899_Hoffenheim_logo.svg.png",
-  "tsg hoffenheim": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/TSG_1899_Hoffenheim_logo.svg/100px-TSG_1899_Hoffenheim_logo.svg.png",
+  "hoffenheim": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Logo_TSG_Hoffenheim.svg/100px-Logo_TSG_Hoffenheim.svg.png",
+  "tsg hoffenheim": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Logo_TSG_Hoffenheim.svg/100px-Logo_TSG_Hoffenheim.svg.png",
   "stuttgart": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/VfB_Stuttgart_1893_Logo.svg/100px-VfB_Stuttgart_1893_Logo.svg.png",
   "vfb stuttgart": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/VfB_Stuttgart_1893_Logo.svg/100px-VfB_Stuttgart_1893_Logo.svg.png",
   "union berlin": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/FC_Union_Berlin_logo.svg/100px-FC_Union_Berlin_logo.svg.png",
