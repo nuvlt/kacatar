@@ -1,5 +1,6 @@
 // api/sync-matches.js
-// Maçları çeker ve logoları Firestore'dan alır (cache)
+// SADECE API-Football'dan maçları çeker
+// Logoları Firestore cache'den alır (teams collection)
 
 import admin from "firebase-admin";
 import { findTeamLogo } from "./logo-service.js";
@@ -20,7 +21,6 @@ const db = admin.firestore();
 // Firestore'dan takım logosu al (cache)
 async function getTeamLogo(teamName, apiKeys) {
   try {
-    // Takım adını normalize et
     const normalizedName = teamName.toLowerCase().trim();
     
     // Teams collection'dan ara
@@ -30,18 +30,18 @@ async function getTeamLogo(teamName, apiKeys) {
       .limit(1)
       .get();
     
-    // Varsa cache'den dön
+    // Cache'de varsa dön
     if (!snapshot.empty) {
       const teamData = snapshot.docs[0].data();
-      console.log(`💾 Cache'den alındı: ${teamName} → ${teamData.logo ? "✅" : "❌"}`);
+      console.log(`💾 Cache: ${teamName} → ${teamData.logo ? "✅" : "❌"}`);
       return teamData.logo || null;
     }
     
-    // Yoksa API'lerden bul
+    // Yoksa TheSportsDB'den bul
     console.log(`🆕 Yeni takım: ${teamName}`);
     const logo = await findTeamLogo(teamName, apiKeys);
     
-    // Firestore'a kaydet (logo null bile olsa kaydet, tekrar sorgulamayalım)
+    // Firestore'a kaydet
     await db.collection("teams").add({
       name: teamName,
       nameLower: normalizedName,
@@ -50,11 +50,11 @@ async function getTeamLogo(teamName, apiKeys) {
       lastChecked: new Date().toISOString(),
     });
     
-    console.log(`💾 Firestore'a kaydedildi: ${teamName} → ${logo ? "✅" : "❌"}`);
+    console.log(`💾 Firestore: ${teamName} → ${logo ? "✅" : "❌"}`);
     return logo;
     
   } catch (error) {
-    console.error(`❌ getTeamLogo error for ${teamName}:`, error.message);
+    console.error(`❌ getTeamLogo error: ${teamName}`, error.message);
     return null;
   }
 }
@@ -67,21 +67,17 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // API anahtarları
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
+    
+    // Sadece TheSportsDB için API key
     const apiKeys = {
-      sportmonks: process.env.SPORTMONKS_API_KEY,
       thesportsdb: process.env.THESPORTSDB_KEY,
-      googleKey: process.env.GOOGLE_SEARCH_KEY,
-      googleCx: process.env.GOOGLE_SEARCH_CX || process.env.GOOGLE_CX,
     };
 
     console.log("\n🚀 Sync başlatılıyor...");
     console.log("📊 API Keys:", {
       football: !!FOOTBALL_API_KEY,
-      sportmonks: !!apiKeys.sportmonks,
       thesportsdb: !!apiKeys.thesportsdb,
-      google: !!apiKeys.googleKey && !!apiKeys.googleCx,
     });
 
     if (!FOOTBALL_API_KEY) {
@@ -95,7 +91,7 @@ export default async function handler(req, res) {
     const dateFrom = from.toISOString().split("T")[0];
     const dateTo = to.toISOString().split("T")[0];
 
-    console.log(`📅 Tarih aralığı: ${dateFrom} → ${dateTo}`);
+    console.log(`📅 Tarih: ${dateFrom} → ${dateTo}`);
 
     // Eski maçları sil
     console.log("🧹 Eski maçlar siliniyor...");
@@ -114,7 +110,7 @@ export default async function handler(req, res) {
     for (const comp of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
       
-      console.log(`\n📡 Fetching: ${comp}`);
+      console.log(`\n📡 Çekiliyor: ${comp}`);
       const response = await fetch(url, {
         headers: { "X-Auth-Token": FOOTBALL_API_KEY },
       });
@@ -126,11 +122,11 @@ export default async function handler(req, res) {
 
       const data = await response.json();
       if (!data.matches || !Array.isArray(data.matches)) {
-        console.warn(`⚠️ No matches for ${comp}`);
+        console.warn(`⚠️ No matches: ${comp}`);
         continue;
       }
 
-      console.log(`✅ ${data.matches.length} maç bulundu: ${comp}`);
+      console.log(`✅ ${data.matches.length} maç: ${comp}`);
 
       for (const match of data.matches) {
         const homeTeam = match.homeTeam?.shortName || match.homeTeam?.name || "Unknown";
@@ -144,7 +140,7 @@ export default async function handler(req, res) {
         if (homeLogo) cachedTeams++; else newTeams++;
         if (awayLogo) cachedTeams++; else newTeams++;
 
-        // Firestore'a kaydet - SADECE homeLogo ve awayLogo field'ları
+        // Firestore'a kaydet
         const matchData = {
           competition: comp,
           league: comp,
