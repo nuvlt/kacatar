@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "echo 'Static site - no build needed'",
+  "outputDirectory": ".",
   "crons": [
     {
       "path": "/api/sync-matches?key=$SECRET_KEY",
