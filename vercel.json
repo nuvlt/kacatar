@@ -2,7 +2,7 @@
   "version": 2,
   "crons": [
     {
-      "path": "/api/sync-matches?key=$benimdata",
+      "path": "/api/sync-matches?key=$SECRET_KEY",
       "schedule": "0 6 * * *"
     }
   ]
