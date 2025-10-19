@@ -3,28 +3,122 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kaç Atar</title>
+  <title>⚽ Kaç Atar - Futbol Tahmin Platformu</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .match-card {
+      transition: all 0.3s ease;
+    }
+    .match-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    .score-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-gray-50 font-sans">
 
   <!-- Header -->
-  <header class="bg-white shadow sticky top-0 z-10">
-    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
-      <h1 class="text-xl font-bold text-blue-600">Kaç Atar</h1>
-      <nav class="flex gap-6 text-gray-600">
-        <a href="#" class="hover:text-blue-600">Maçlar</a>
-        <a href="#" class="hover:text-blue-600">Tahminler</a>
-        <a href="#" class="hover:text-blue-600">Sonuçlar</a>
-      </nav>
+  <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <div class="flex items-center gap-3">
+          <div class="text-4xl">⚽</div>
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-bold">Kaç Atar</h1>
+            <p class="text-sm text-purple-100">Futbol Tahmin Platformu</p>
+          </div>
+        </div>
+        <nav class="hidden md:flex gap-6 text-sm font-semibold">
+          <a href="#matches" class="hover:text-purple-200 transition">Maçlar</a>
+          <a href="#stats" class="hover:text-purple-200 transition">İstatistikler</a>
+          <a href="#about" class="hover:text-purple-200 transition">Hakkında</a>
+        </nav>
+      </div>
     </div>
   </header>
 
-  <!-- Main -->
-  <main class="max-w-3xl mx-auto px-4 py-8">
-    <h2 class="text-3xl font-bold text-center mb-8">Yaklaşan Maçlar</h2>
-    <div id="matches" class="space-y-6"></div>
+  <!-- Hero Section -->
+  <section class="gradient-bg text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-4">
+        🎯 Yaklaşan Maçları Tahmin Et!
+      </h2>
+      <p class="text-lg text-purple-100 mb-6">
+        Favori takımların için skor tahmini yap, topluluğun ne düşündüğünü gör
+      </p>
+      <div class="flex justify-center gap-4 text-sm">
+        <div class="bg-white bg-opacity-20 px-4 py-2 rounded-full backdrop-blur">
+          <span class="font-bold" id="totalMatchesCount">-</span> Maç
+        </div>
+        <div class="bg-white bg-opacity-20 px-4 py-2 rounded-full backdrop-blur">
+          <span class="font-bold" id="totalVotesCount">-</span> Tahmin
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter Bar -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 mb-8">
+    <div class="bg-white rounded-xl shadow-lg p-4">
+      <div class="flex flex-col sm:flex-row gap-4 items-center">
+        <div class="flex-1 w-full">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="🔍 Takım ara..." 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          >
+        </div>
+        <div class="flex gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+          <button onclick="filterByLeague('all')" class="league-btn whitespace-nowrap px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">
+            🌍 Tümü
+          </button>
+          <button onclick="filterByLeague('PL')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+            🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier
+          </button>
+          <button onclick="filterByLeague('PD')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+            🇪🇸 La Liga
+          </button>
+          <button onclick="filterByLeague('SA')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+            🇮🇹 Serie A
+          </button>
+          <button onclick="filterByLeague('BL1')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+            🇩🇪 Bundesliga
+          </button>
+          <button onclick="filterByLeague('FL1')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+            🇫🇷 Ligue 1
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Matches Grid -->
+  <main id="matches" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <div id="matchesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Loading -->
+      <div class="col-span-full text-center py-16">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+        <p class="text-gray-500 text-lg">Maçlar yükleniyor...</p>
+      </div>
+    </div>
   </main>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p class="text-gray-400">⚽ Kaç Atar - 2025</p>
+      <p class="text-sm text-gray-500 mt-2">Futbol tahmin platformu</p>
+    </div>
+  </footer>
 
   <!-- Firebase + JS -->
   <script type="module">
@@ -46,12 +140,23 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     let currentUser = null;
+    let allMatches = [];
+    let currentLeague = 'all';
+
+    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%239ca3af'%3E%3F%3C/text%3E%3C/svg%3E";
+
+    const leagueNames = {
+      'PL': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League',
+      'PD': '🇪🇸 La Liga',
+      'SA': '🇮🇹 Serie A',
+      'BL1': '🇩🇪 Bundesliga',
+      'FL1': '🇫🇷 Ligue 1',
+    };
 
     // Anon login
     signInAnonymously(auth).catch(console.error);
     onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
 
-    // Yardımcı: tarih parse & format
     function parseDateField(dateField, timeField) {
       if (!dateField) return null;
       if (typeof dateField === "object" && typeof dateField.seconds === "number")
@@ -64,10 +169,25 @@
       }
       return null;
     }
+
     function formatMatchDate(match) {
       const d = parseDateField(match.date, match.time);
-      if (d) return d.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
-      if (match.time && !match.date) return `Saat: ${match.time}`;
+      if (d) {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const matchDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const tomorrowDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
+        
+        if (matchDate.getTime() === todayDate.getTime()) {
+          return '🔴 Bugün ' + d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        } else if (matchDate.getTime() === tomorrowDate.getTime()) {
+          return '🟢 Yarın ' + d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        }
+        return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      }
       return "Tarih bilinmiyor";
     }
 
@@ -81,95 +201,161 @@
         .replace(/'/g, "&#39;");
     }
 
-    // Placeholder logo URL'i
-    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%239ca3af'%3E%3F%3C/text%3E%3C/svg%3E";
-
-    // Maçları yükle
     async function loadMatches() {
-      const matchesDiv = document.getElementById("matches");
-      matchesDiv.innerHTML = '<p class="text-center text-gray-500">Maçlar yükleniyor...</p>';
+      const container = document.getElementById('matchesContainer');
 
       try {
         const querySnapshot = await getDocs(collection(db, "matches"));
-        const matches = [];
+        allMatches = [];
+        
         querySnapshot.forEach((docSnap) => {
           const m = docSnap.data() || {};
           m._id = docSnap.id;
-          matches.push(m);
+          allMatches.push(m);
         });
 
-        if (matches.length === 0) {
-          matchesDiv.innerHTML = '<p class="text-center text-gray-500">Henüz maç yok.</p>';
-          return;
-        }
-
-        // tarihe göre sırala
-        matches.sort((a, b) => {
+        // Sort by date
+        allMatches.sort((a, b) => {
           const da = parseDateField(a.date, a.time);
-          const dbx = parseDateField(b.date, b.time);
-          if (da && dbx) return da - dbx;
+          const db = parseDateField(b.date, b.time);
+          if (da && db) return da - db;
           if (da) return -1;
-          if (dbx) return 1;
-          return (a.home || "").localeCompare(b.home || "");
+          if (db) return 1;
+          return 0;
         });
 
-        matchesDiv.innerHTML = "";
-
-        for (const match of matches) {
-          const matchId = match._id;
-          const card = document.createElement("div");
-          card.className = "match-card bg-white p-6 rounded-xl shadow flex flex-col gap-4";
-          card.dataset.id = matchId;
-
-          const dateText = formatMatchDate(match);
-          const homeName = match.home || "Bilinmiyor";
-          const awayName = match.away || "Bilinmiyor";
-          
-          // Logo URL'lerini kontrol et - boşsa placeholder kullan
-          const homeLogo = (match.homeLogo && match.homeLogo !== "") ? match.homeLogo : PLACEHOLDER;
-          const awayLogo = (match.awayLogo && match.awayLogo !== "") ? match.awayLogo : PLACEHOLDER;
-          
-          const popularText = match.popularPrediction || "—";
-          const voteCount = match.voteCount || 0;
-
-          card.innerHTML = `
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <img src="${homeLogo}" alt="${escapeHtml(homeName)}" class="w-10 h-10 rounded-full border object-cover" onerror="this.src='${PLACEHOLDER}'">
-                <span class="text-lg font-semibold">${escapeHtml(homeName)}</span>
-              </div>
-              <span class="text-gray-700 font-bold">vs</span>
-              <div class="flex items-center gap-3">
-                <span class="text-lg font-semibold">${escapeHtml(awayName)}</span>
-                <img src="${awayLogo}" alt="${escapeHtml(awayName)}" class="w-10 h-10 rounded-full border object-cover" onerror="this.src='${PLACEHOLDER}'">
-              </div>
-            </div>
-
-            <p class="text-sm text-gray-500 text-center">${dateText}</p>
-
-            <div class="flex justify-center items-center gap-3">
-              <input type="number" placeholder="${homeName}" class="home-score w-20 p-2 border rounded text-center">
-              <span class="font-bold">-</span>
-              <input type="number" placeholder="${awayName}" class="away-score w-20 p-2 border rounded text-center">
-              <button class="vote-button bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Oy Ver</button>
-            </div>
-
-            <p class="text-sm text-gray-500 text-center">
-              En Popüler Tahmin: ${escapeHtml(popularText)} (${voteCount} oy)
-            </p>
-          `;
-
-          matchesDiv.appendChild(card);
-        }
+        updateStats();
+        renderMatches();
       } catch (error) {
-        console.error("Maçlar yüklenirken hata:", error);
-        matchesDiv.innerHTML = '<p class="text-center text-red-500">Maçlar yüklenemedi. Lütfen tekrar deneyin.</p>';
+        console.error("Matches load error:", error);
+        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Maçlar yüklenemedi</div>';
       }
     }
 
-    loadMatches();
+    function updateStats() {
+      const totalVotes = allMatches.reduce((sum, m) => sum + (m.voteCount || 0), 0);
+      document.getElementById('totalMatchesCount').textContent = allMatches.length;
+      document.getElementById('totalVotesCount').textContent = totalVotes;
+    }
 
-    // Oy verme
+    function renderMatches() {
+      const container = document.getElementById('matchesContainer');
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+      let filtered = allMatches.filter(match => {
+        // League filter
+        if (currentLeague !== 'all' && match.league !== currentLeague) return false;
+
+        // Search filter
+        if (searchTerm) {
+          const home = (match.home || "").toLowerCase();
+          const away = (match.away || "").toLowerCase();
+          return home.includes(searchTerm) || away.includes(searchTerm);
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="col-span-full text-center text-gray-500 py-16"><div class="text-6xl mb-4">😔</div><p class="text-xl">Maç bulunamadı</p></div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(match => {
+        const matchId = match._id;
+        const home = match.home || "Bilinmiyor";
+        const away = match.away || "Bilinmiyor";
+        const homeLogo = (match.homeLogo && match.homeLogo !== "") ? match.homeLogo : PLACEHOLDER;
+        const awayLogo = (match.awayLogo && match.awayLogo !== "") ? match.awayLogo : PLACEHOLDER;
+        const dateText = formatMatchDate(match);
+        const leagueName = leagueNames[match.league] || match.league || "";
+        const popularText = match.popularPrediction || "—";
+        const voteCount = match.voteCount || 0;
+
+        return `
+          <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}">
+            <!-- League Badge -->
+            <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
+              <span>${leagueName}</span>
+              <span class="text-xs opacity-90">${dateText}</span>
+            </div>
+
+            <!-- Match Content -->
+            <div class="p-6">
+              <!-- Teams -->
+              <div class="grid grid-cols-3 gap-4 items-center mb-6">
+                <!-- Home -->
+                <div class="text-center">
+                  <img src="${homeLogo}" alt="${escapeHtml(home)}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
+                  <p class="font-bold text-sm text-gray-800">${escapeHtml(home)}</p>
+                </div>
+
+                <!-- VS -->
+                <div class="text-center">
+                  <span class="text-2xl font-bold text-gray-300">VS</span>
+                </div>
+
+                <!-- Away -->
+                <div class="text-center">
+                  <img src="${awayLogo}" alt="${escapeHtml(away)}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
+                  <p class="font-bold text-sm text-gray-800">${escapeHtml(away)}</p>
+                </div>
+              </div>
+
+              <!-- Score Inputs -->
+              <div class="flex items-center justify-center gap-3 mb-4">
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="20" 
+                  placeholder="0"
+                  class="score-input home-score w-16 h-16 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl"
+                >
+                <span class="text-3xl font-bold text-gray-400">-</span>
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="20" 
+                  placeholder="0"
+                  class="score-input away-score w-16 h-16 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl"
+                >
+              </div>
+
+              <!-- Vote Button -->
+              <button class="vote-button w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
+                🎯 Tahmin Et
+              </button>
+
+              <!-- Stats -->
+              <div class="mt-4 p-3 bg-gray-50 rounded-xl text-center">
+                <p class="text-xs text-gray-500 mb-1">En Popüler Tahmin</p>
+                <p class="font-bold text-lg text-purple-600">${escapeHtml(popularText)}</p>
+                <p class="text-xs text-gray-400 mt-1">${voteCount} kişi tahmin yaptı</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Filter by league
+    window.filterByLeague = function(league) {
+      currentLeague = league;
+      
+      document.querySelectorAll('.league-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600', 'text-white', 'shadow-lg');
+        btn.classList.add('bg-gray-100');
+      });
+      event.target.classList.remove('bg-gray-100');
+      event.target.classList.add('bg-purple-600', 'text-white', 'shadow-lg');
+      
+      renderMatches();
+    };
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', renderMatches);
+
+    // Vote handler
     document.addEventListener("click", async (e) => {
       if (e.target.closest(".vote-button")) {
         const card = e.target.closest(".match-card");
@@ -177,36 +363,58 @@
         const homeScore = card.querySelector(".home-score").value;
         const awayScore = card.querySelector(".away-score").value;
 
-        if (!homeScore || !awayScore) return alert("Lütfen skor giriniz");
+        if (!homeScore || !awayScore) {
+          alert("⚠️ Lütfen her iki takım için de skor girin!");
+          return;
+        }
+
         const prediction = `${homeScore}-${awayScore}`;
 
         try {
           const matchRef = doc(db, "matches", matchId);
           const matchSnap = await getDoc(matchRef);
-          if (!matchSnap.exists()) return alert("Maç bulunamadı!");
+          
+          if (!matchSnap.exists()) {
+            alert("❌ Maç bulunamadı!");
+            return;
+          }
 
-          await updateDoc(matchRef, { [`votes.${currentUser.uid}`]: prediction });
+          await updateDoc(matchRef, { 
+            [`votes.${currentUser.uid}`]: prediction 
+          });
 
           const updatedSnap = await getDoc(matchRef);
           const votes = updatedSnap.data().votes || {};
           const counts = {};
-          Object.values(votes).forEach((p) => (counts[p] = (counts[p] || 0) + 1));
+          
+          Object.values(votes).forEach((p) => {
+            counts[p] = (counts[p] || 0) + 1;
+          });
 
           let popular = null, maxCount = 0;
           for (let [score, count] of Object.entries(counts)) {
-            if (count > maxCount) { popular = score; maxCount = count; }
+            if (count > maxCount) { 
+              popular = score; 
+              maxCount = count; 
+            }
           }
 
-          await updateDoc(matchRef, { popularPrediction: popular, voteCount: maxCount });
-          alert("Oyun kaydedildi ✅");
-          loadMatches();
+          await updateDoc(matchRef, { 
+            popularPrediction: popular, 
+            voteCount: maxCount 
+          });
+
+          alert(`✅ Tahminin kaydedildi: ${prediction}`);
+          await loadMatches();
         } catch (err) {
-          console.error("Oy kaydetme hatası:", err);
-          alert("Oy kaydedilemedi ❌");
+          console.error("Vote error:", err);
+          alert("❌ Tahmin kaydedilemedi: " + err.message);
         }
       }
     });
+
+    // Initial load
+    loadMatches();
   </script>
 </body>
 </html>
-
