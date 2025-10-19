@@ -1,7 +1,10 @@
 {
-  "name": "kacatar-api",
+  "name": "kacatar",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "build": "echo 'No build needed'"
+  },
   "dependencies": {
     "firebase-admin": "^11.11.1"
   }
