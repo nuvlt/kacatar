@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📊 Maç Sonuçları - Kaç Atar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .result-card {
+      transition: all 0.3s ease;
+    }
+    .result-card:hover {
+      transform: translateY(-4px);
+    }
+    .score-correct { background: #10b981; color: white; }
+    .score-wrong { background: #ef4444; color: white; }
+    .score-pending { background: #fbbf24; color: white; }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+  <!-- Header -->
+  <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <div class="flex items-center gap-3">
+          <div class="text-4xl">📊</div>
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-bold">Maç Sonuçları</h1>
+            <p class="text-sm text-purple-100">Canlı Skorlar & Tahminler</p>
+          </div>
+        </div>
+        <nav class="flex gap-4 text-sm font-semibold">
+          <a href="/" class="hover:text-purple-200 transition">Ana Sayfa</a>
+          <a href="/admin.html" class="hover:text-purple-200 transition">Admin</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filter Bar -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 items-center">
+      <button onclick="loadResults('today')" class="filter-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">
+        🔴 Bugün
+      </button>
+      <button onclick="loadResults('yesterday')" class="filter-btn px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+        ⏮️ Dün
+      </button>
+      <button onclick="loadResults('week')" class="filter-btn px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+        📅 Bu Hafta
+      </button>
+      <button onclick="refreshResults()" class="ml-auto px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
+        🔄 Yenile
+      </button>
+    </div>
+  </div>
+
+  <!-- Results Grid -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Loading -->
+      <div class="col-span-full text-center py-16">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+        <p class="text-gray-500 text-lg">Sonuçlar yükleniyor...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Firebase + JS -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    let currentUser = null;
+    let currentFilter = 'today';
+
+    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%239ca3af'%3E%3F%3C/text%3E%3C/svg%3E";
+
+    signInAnonymously(auth).catch(console.error);
+    onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
+
+    const leagueNames = {
+      'PL': '⚽ Premier League',
+      'PD': '⚽ La Liga',
+      'SA': '⚽ Serie A',
+      'BL1': '⚽ Bundesliga',
+      'FL1': '⚽ Ligue 1',
+    };
+
+    function getDateRange(filter) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      if (filter === 'today') {
+        return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+      } else if (filter === 'yesterday') {
+        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        return { from: yesterday, to: today };
+      } else if (filter === 'week') {
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return { from: weekAgo, to: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+      }
+    }
+
+    async function fetchLiveScores(filter) {
+      try {
+        // Sunucu taraflı API kullan (API key gizli kalır)
+        const response = await fetch(`/api/live-scores?filter=${filter}`);
+        
+        if (!response.ok) {
+          throw new Error('API error');
+        }
+        
+        const data = await response.json();
+        return data.matches || [];
+      } catch (error) {
+        console.error('Fetch scores error:', error);
+        return [];
+      }
+    }
+
+    async function loadResults(filter = 'today') {
+      currentFilter = filter;
+      const container = document.getElementById('resultsContainer');
+      container.innerHTML = '<div class="col-span-full text-center py-16"><div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div><p class="text-gray-500 text-lg">Yükleniyor...</p></div>';
+
+      // Update filter buttons
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600', 'text-white');
+        btn.classList.add('bg-gray-100');
+      });
+      event.target.classList.remove('bg-gray-100');
+      event.target.classList.add('bg-purple-600', 'text-white');
+
+      try {
+        // 1. API'den canlı skorları al
+        const liveMatches = await fetchLiveScores(filter);
+        
+        // 2. Firestore'dan tahminleri al
+        const matchesSnapshot = await getDocs(collection(db, "matches"));
+        const predictions = {};
+        
+        matchesSnapshot.forEach(doc => {
+          const data = doc.data();
+          predictions[doc.id] = {
+            votes: data.votes || {},
+            popularPrediction: data.popularPrediction,
+            voteCount: data.voteCount || 0,
+          };
+        });
+
+        if (liveMatches.length === 0) {
+          container.innerHTML = '<div class="col-span-full text-center py-16"><div class="text-6xl mb-4">😔</div><p class="text-xl text-gray-500">Bu tarihte maç bulunamadı</p></div>';
+          return;
+        }
+
+        // 3. Render
+        container.innerHTML = liveMatches.map(match => {
+          const homeTeam = match.homeTeam?.shortName || match.homeTeam?.name || 'Home';
+          const awayTeam = match.awayTeam?.shortName || match.awayTeam?.name || 'Away';
+          const homeScore = match.score?.fullTime?.home ?? match.score?.halfTime?.home ?? '?';
+          const awayScore = match.score?.fullTime?.away ?? match.score?.halfTime?.away ?? '?';
+          const status = match.status === 'FINISHED' ? '✅ Bitti' : '🔴 Canlı';
+          const statusClass = match.status === 'FINISHED' ? 'bg-green-500' : 'bg-red-500';
+          
+          const matchId = String(match.id);
+          const pred = predictions[matchId];
+          const userPrediction = pred && currentUser ? pred.votes[currentUser.uid] : null;
+          const popularPred = pred?.popularPrediction || '—';
+          
+          let predictionStatus = 'pending';
+          if (match.status === 'FINISHED' && userPrediction) {
+            const actualScore = `${homeScore}-${awayScore}`;
+            predictionStatus = userPrediction === actualScore ? 'correct' : 'wrong';
+          }
+          
+          const predClass = predictionStatus === 'correct' ? 'score-correct' : predictionStatus === 'wrong' ? 'score-wrong' : 'score-pending';
+          const predText = predictionStatus === 'correct' ? '✅ Doğru!' : predictionStatus === 'wrong' ? '❌ Yanlış' : '⏳ Beklemede';
+
+          return `
+            <div class="result-card bg-white rounded-2xl shadow-md overflow-hidden">
+              <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
+                <span>${leagueNames[match.league] || match.league}</span>
+                <span class="px-2 py-1 ${statusClass} rounded-full text-xs">${status}</span>
+              </div>
+
+              <div class="p-6">
+                <div class="grid grid-cols-3 gap-4 items-center mb-4">
+                  <div class="text-center">
+                    <img src="${PLACEHOLDER}" alt="${homeTeam}" class="w-12 h-12 mx-auto mb-2 object-contain">
+                    <p class="font-bold text-sm">${homeTeam}</p>
+                  </div>
+
+                  <div class="text-center">
+                    <p class="text-4xl font-bold text-purple-600">${homeScore} - ${awayScore}</p>
+                  </div>
+
+                  <div class="text-center">
+                    <img src="${PLACEHOLDER}" alt="${awayTeam}" class="w-12 h-12 mx-auto mb-2 object-contain">
+                    <p class="font-bold text-sm">${awayTeam}</p>
+                  </div>
+                </div>
+
+                ${userPrediction ? `
+                  <div class="mb-3 p-3 ${predClass} rounded-xl text-center">
+                    <p class="text-sm font-bold">${predText}</p>
+                    <p class="text-sm">Tahminin: ${userPrediction}</p>
+                  </div>
+                ` : ''}
+
+                <div class="p-3 bg-gray-50 rounded-xl text-center">
+                  <p class="text-xs text-gray-500 mb-1">En Popüler Tahmin</p>
+                  <p class="font-bold text-lg text-purple-600">${popularPred}</p>
+                  <p class="text-xs text-gray-400 mt-1">${pred?.voteCount || 0} kişi</p>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (error) {
+        console.error('Load results error:', error);
+        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Yükleme hatası!</div>';
+      }
+    }
+
+    window.loadResults = loadResults;
+    window.refreshResults = () => loadResults(currentFilter);
+
+    // Initial load
+    loadResults('today');
+  </script>
+</body>
+</html>
