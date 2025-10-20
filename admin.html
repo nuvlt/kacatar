@@ -69,11 +69,14 @@
           <h1 class="text-2xl font-bold">🔐 Admin Panel</h1>
           <p class="text-sm text-blue-100">Logo Yönetimi & Güncelleme</p>
         </div>
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-4">
           <div class="text-right">
             <div class="text-sm">Toplam Maç: <span id="totalMatches" class="font-bold">-</span></div>
             <div class="text-sm">Eksik Logo: <span id="missingCount" class="font-bold text-red-300">-</span></div>
           </div>
+          <button onclick="manualSync()" id="syncBtn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold">
+            🔄 Maçları Güncelle
+          </button>
           <button onclick="logout()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
             🚪 Çıkış
           </button>
@@ -198,13 +201,11 @@
         const result = await response.json();
 
         if (result.ok) {
-          // Success
           sessionStorage.setItem('adminLoggedIn', 'true');
           document.getElementById('loginScreen').classList.add('hidden');
           document.getElementById('mainPanel').classList.remove('hidden');
           loadMatches();
         } else {
-          // Failed
           errorDiv.textContent = '❌ ' + (result.message || 'Giriş başarısız!');
           errorDiv.classList.remove('hidden');
           document.getElementById('loginPassword').value = '';
@@ -225,6 +226,42 @@
         document.getElementById('loginScreen').classList.remove('hidden');
         document.getElementById('loginUsername').value = '';
         document.getElementById('loginPassword').value = '';
+      }
+    };
+
+    // Manual Sync
+    window.manualSync = async function() {
+      const btn = document.getElementById('syncBtn');
+      const originalText = btn.textContent;
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ Güncelleniyor...';
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+      
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key girin:');
+        
+        if (!SECRET_KEY) {
+          alert('❌ Secret key gerekli!');
+          return;
+        }
+        
+        const response = await fetch(`/api/sync-matches?key=${SECRET_KEY}`);
+        const result = await response.json();
+        
+        if (result.ok) {
+          alert(`✅ Başarılı!\n\n${result.message}\n\nToplam: ${result.stats.totalMatches} maç`);
+          await loadMatches();
+        } else {
+          alert('❌ Hata: ' + (result.error || 'Bilinmeyen hata'));
+        }
+      } catch (error) {
+        console.error('Sync error:', error);
+        alert('❌ Bağlantı hatası!');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
       }
     };
 
