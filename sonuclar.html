@@ -9,15 +9,8 @@
     .gradient-bg {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
-    .result-card {
-      transition: all 0.3s ease;
-    }
-    .result-card:hover {
-      transform: translateY(-4px);
-    }
     .score-correct { background: #10b981; color: white; }
     .score-wrong { background: #ef4444; color: white; }
-    .score-pending { background: #fbbf24; color: white; }
   </style>
 </head>
 <body class="bg-gray-50 font-sans">
@@ -35,7 +28,6 @@
         </div>
         <nav class="flex gap-4 text-sm font-semibold">
           <a href="/" class="hover:text-purple-200 transition">Ana Sayfa</a>
-          <a href="/admin.html" class="hover:text-purple-200 transition">Admin</a>
         </nav>
       </div>
     </div>
@@ -43,18 +35,15 @@
 
   <!-- Filter Bar -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 items-center">
-      <button onclick="loadResults('today')" class="filter-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">
+    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 items-center justify-center">
+      <button onclick="loadResults('today')" class="filter-btn px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition">
         🔴 Bugün
       </button>
-      <button onclick="loadResults('yesterday')" class="filter-btn px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+      <button onclick="loadResults('yesterday')" class="filter-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold transition">
         ⏮️ Dün
       </button>
-      <button onclick="loadResults('week')" class="filter-btn px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+      <button onclick="loadResults('week')" class="filter-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold transition">
         📅 Bu Hafta
-      </button>
-      <button onclick="refreshResults()" class="ml-auto px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
-        🔄 Yenile
       </button>
     </div>
   </div>
@@ -62,7 +51,6 @@
   <!-- Results Grid -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
     <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Loading -->
       <div class="col-span-full text-center py-16">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
         <p class="text-gray-500 text-lg">Sonuçlar yükleniyor...</p>
@@ -70,10 +58,9 @@
     </div>
   </main>
 
-  <!-- Firebase + JS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
@@ -86,12 +73,11 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     let currentUser = null;
-    let currentFilter = 'today';
-
-    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%239ca3af'%3E%3F%3C/text%3E%3C/svg%3E";
 
     signInAnonymously(auth).catch(console.error);
     onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
+
+    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%239ca3af'%3E%3F%3C/text%3E%3C/svg%3E";
 
     const leagueNames = {
       'PL': '⚽ Premier League',
@@ -101,71 +87,48 @@
       'FL1': '⚽ Ligue 1',
     };
 
-    function getDateRange(filter) {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      if (filter === 'today') {
-        return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
-      } else if (filter === 'yesterday') {
-        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-        return { from: yesterday, to: today };
-      } else if (filter === 'week') {
-        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return { from: weekAgo, to: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
-      }
-    }
-
-    async function fetchLiveScores(filter) {
-      try {
-        // Sunucu taraflı API kullan (API key gizli kalır)
-        const response = await fetch(`/api/live-scores?filter=${filter}`);
-        
-        if (!response.ok) {
-          throw new Error('API error');
-        }
-        
-        const data = await response.json();
-        return data.matches || [];
-      } catch (error) {
-        console.error('Fetch scores error:', error);
-        return [];
-      }
-    }
-
-    async function loadResults(filter = 'today') {
-      currentFilter = filter;
+    async function loadResults(filter) {
       const container = document.getElementById('resultsContainer');
       container.innerHTML = '<div class="col-span-full text-center py-16"><div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div><p class="text-gray-500 text-lg">Yükleniyor...</p></div>';
 
-      // Update filter buttons
+      // Update buttons
       document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('bg-purple-600', 'text-white');
         btn.classList.add('bg-gray-100');
-        
-        // Check which button should be active
-        if ((filter === 'today' && btn.textContent.includes('Bugün')) ||
-            (filter === 'yesterday' && btn.textContent.includes('Dün')) ||
-            (filter === 'week' && btn.textContent.includes('Hafta'))) {
-          btn.classList.remove('bg-gray-100');
-          btn.classList.add('bg-purple-600', 'text-white');
-        }
       });
 
+      const activeBtn = Array.from(document.querySelectorAll('.filter-btn')).find(btn => {
+        if (filter === 'today') return btn.textContent.includes('Bugün');
+        if (filter === 'yesterday') return btn.textContent.includes('Dün');
+        if (filter === 'week') return btn.textContent.includes('Hafta');
+      });
+
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-gray-100');
+        activeBtn.classList.add('bg-purple-600', 'text-white');
+      }
+
       try {
-        // 1. API'den canlı skorları al
-        const liveMatches = await fetchLiveScores(filter);
+        // API'den skorları al
+        const response = await fetch(`/api/live-scores?filter=${filter}`);
         
-        // 2. Firestore'dan tahminleri al
+        if (!response.ok) {
+          throw new Error('API hatası');
+        }
+
+        const data = await response.json();
+        const liveMatches = data.matches || [];
+
+        // Firestore'dan tahminleri al
         const matchesSnapshot = await getDocs(collection(db, "matches"));
         const predictions = {};
         
         matchesSnapshot.forEach(doc => {
-          const data = doc.data();
+          const matchData = doc.data();
           predictions[doc.id] = {
-            votes: data.votes || {},
-            popularPrediction: data.popularPrediction,
-            voteCount: data.voteCount || 0,
+            votes: matchData.votes || {},
+            popularPrediction: matchData.popularPrediction,
+            voteCount: matchData.voteCount || 0,
           };
         });
 
@@ -174,12 +137,12 @@
           return;
         }
 
-        // 3. Render
+        // Render
         container.innerHTML = liveMatches.map(match => {
-          const homeTeam = match.homeTeam?.shortName || match.homeTeam?.name || 'Home';
-          const awayTeam = match.awayTeam?.shortName || match.awayTeam?.name || 'Away';
-          const homeScore = match.score?.fullTime?.home ?? match.score?.halfTime?.home ?? '?';
-          const awayScore = match.score?.fullTime?.away ?? match.score?.halfTime?.away ?? '?';
+          const homeTeam = match.homeTeam || 'Home';
+          const awayTeam = match.awayTeam || 'Away';
+          const homeScore = match.homeScore ?? '?';
+          const awayScore = match.awayScore ?? '?';
           const status = match.status === 'FINISHED' ? '✅ Bitti' : '🔴 Canlı';
           const statusClass = match.status === 'FINISHED' ? 'bg-green-500' : 'bg-red-500';
           
@@ -188,17 +151,25 @@
           const userPrediction = pred && currentUser ? pred.votes[currentUser.uid] : null;
           const popularPred = pred?.popularPrediction || '—';
           
-          let predictionStatus = 'pending';
+          let predictionStatus = '';
+          let predClass = 'bg-gray-100';
+          let predText = '';
+
           if (match.status === 'FINISHED' && userPrediction) {
             const actualScore = `${homeScore}-${awayScore}`;
-            predictionStatus = userPrediction === actualScore ? 'correct' : 'wrong';
+            if (userPrediction === actualScore) {
+              predictionStatus = 'correct';
+              predClass = 'score-correct';
+              predText = '✅ Doğru Tahmin!';
+            } else {
+              predictionStatus = 'wrong';
+              predClass = 'score-wrong';
+              predText = '❌ Yanlış Tahmin';
+            }
           }
-          
-          const predClass = predictionStatus === 'correct' ? 'score-correct' : predictionStatus === 'wrong' ? 'score-wrong' : 'score-pending';
-          const predText = predictionStatus === 'correct' ? '✅ Doğru!' : predictionStatus === 'wrong' ? '❌ Yanlış' : '⏳ Beklemede';
 
           return `
-            <div class="result-card bg-white rounded-2xl shadow-md overflow-hidden">
+            <div class="bg-white rounded-2xl shadow-md overflow-hidden">
               <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
                 <span>${leagueNames[match.league] || match.league}</span>
                 <span class="px-2 py-1 ${statusClass} rounded-full text-xs">${status}</span>
@@ -221,10 +192,10 @@
                   </div>
                 </div>
 
-                ${userPrediction ? `
+                ${userPrediction && predText ? `
                   <div class="mb-3 p-3 ${predClass} rounded-xl text-center">
                     <p class="text-sm font-bold">${predText}</p>
-                    <p class="text-sm">Tahminin: ${userPrediction}</p>
+                    <p class="text-sm">Senin Tahminin: ${userPrediction}</p>
                   </div>
                 ` : ''}
 
@@ -237,14 +208,14 @@
             </div>
           `;
         }).join('');
+
       } catch (error) {
         console.error('Load results error:', error);
-        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Yükleme hatası!</div>';
+        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Yükleme hatası! API çalışmıyor olabilir.</div>';
       }
     }
 
     window.loadResults = loadResults;
-    window.refreshResults = () => loadResults(currentFilter);
 
     // Initial load
     loadResults('today');
