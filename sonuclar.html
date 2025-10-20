@@ -142,9 +142,15 @@
       document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('bg-purple-600', 'text-white');
         btn.classList.add('bg-gray-100');
+        
+        // Check which button should be active
+        if ((filter === 'today' && btn.textContent.includes('Bugün')) ||
+            (filter === 'yesterday' && btn.textContent.includes('Dün')) ||
+            (filter === 'week' && btn.textContent.includes('Hafta'))) {
+          btn.classList.remove('bg-gray-100');
+          btn.classList.add('bg-purple-600', 'text-white');
+        }
       });
-      event.target.classList.remove('bg-gray-100');
-      event.target.classList.add('bg-purple-600', 'text-white');
 
       try {
         // 1. API'den canlı skorları al
