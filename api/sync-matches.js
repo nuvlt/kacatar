@@ -36,12 +36,20 @@ export default async function handler(req, res) {
 
     console.log(`📅 ${dateFrom} → ${dateTo}`);
 
-    // Eski maçları sil
-    const oldMatches = await db.collection("matches").get();
-    const deleteBatch = db.batch();
-    oldMatches.forEach((doc) => deleteBatch.delete(doc.ref));
-    await deleteBatch.commit();
-    console.log(`🧹 ${oldMatches.size} eski maç silindi`);
+    // SADECE geçmiş maçları sil (bugünden önce)
+    const yesterday = new Date(from.getTime() - 24 * 60 * 60 * 1000);
+    const oldMatchesQuery = await db.collection("matches")
+      .where("date", "<", yesterday.toISOString())
+      .get();
+    
+    if (!oldMatchesQuery.empty) {
+      const deleteBatch = db.batch();
+      oldMatchesQuery.forEach((doc) => deleteBatch.delete(doc.ref));
+      await deleteBatch.commit();
+      console.log(`🧹 ${oldMatchesQuery.size} geçmiş maç silindi`);
+    } else {
+      console.log(`🧹 Silinecek geçmiş maç yok`);
+    }
 
     // Ligler
     const competitions = ["PL", "PD", "SA", "BL1", "FL1"];
@@ -118,26 +126,64 @@ export default async function handler(req, res) {
           console.error(`Logo fetch error: ${homeTeam} vs ${awayTeam}`, e.message);
         }
 
-        // Maçı kaydet
-        const matchData = {
-          competition: comp,
-          league: comp,
-          home: homeTeam,
-          away: awayTeam,
-          homeTeam: homeTeam,
-          awayTeam: awayTeam,
-          homeLogo: homeLogo,
-          awayLogo: awayLogo,
-          date: match.utcDate,
-          time: match.utcDate,
-          votes: {},
-          popularPrediction: null,
-          voteCount: 0,
-          syncedAt: new Date().toISOString(),
-        };
-
+        // Maçı kaydet - SADECE logo yoksa güncelle
         const docId = match.id ? String(match.id) : `${comp}-${homeTeam}-${awayTeam}`.replace(/\s+/g, "_");
-        await db.collection("matches").doc(docId).set(matchData);
+        
+        // Önce mevcut maçı kontrol et
+        const existingMatchDoc = await db.collection("matches").doc(docId).get();
+        
+        if (existingMatchDoc.exists()) {
+          // Maç zaten var - SADECE logosu YOKSA güncelle
+          const existingData = existingMatchDoc.data();
+          const updates = {
+            date: match.utcDate,
+            time: match.utcDate,
+            syncedAt: new Date().toISOString(),
+          };
+          
+          // Home logo: Sadece yoksa veya boşsa güncelle
+          if (!existingData.homeLogo || existingData.homeLogo === "") {
+            if (homeLogo) {
+              updates.homeLogo = homeLogo;
+              console.log(`🆕 ${homeTeam}: Logo eklendi`);
+            }
+          } else {
+            console.log(`✅ ${homeTeam}: Mevcut logo korundu`);
+          }
+          
+          // Away logo: Sadece yoksa veya boşsa güncelle
+          if (!existingData.awayLogo || existingData.awayLogo === "") {
+            if (awayLogo) {
+              updates.awayLogo = awayLogo;
+              console.log(`🆕 ${awayTeam}: Logo eklendi`);
+            }
+          } else {
+            console.log(`✅ ${awayTeam}: Mevcut logo korundu`);
+          }
+          
+          await db.collection("matches").doc(docId).update(updates);
+        } else {
+          // Yeni maç - tüm bilgileri kaydet
+          const matchData = {
+            competition: comp,
+            league: comp,
+            home: homeTeam,
+            away: awayTeam,
+            homeTeam: homeTeam,
+            awayTeam: awayTeam,
+            homeLogo: homeLogo,
+            awayLogo: awayLogo,
+            date: match.utcDate,
+            time: match.utcDate,
+            votes: {},
+            popularPrediction: null,
+            voteCount: 0,
+            syncedAt: new Date().toISOString(),
+          };
+          
+          await db.collection("matches").doc(docId).set(matchData);
+          console.log(`🆕 Yeni maç: ${homeTeam} vs ${awayTeam}`);
+        }
         
         totalMatches++;
       }
