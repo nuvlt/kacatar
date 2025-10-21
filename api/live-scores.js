@@ -98,6 +98,9 @@ export default async function handler(req, res) {
       }
     }
 
+    // Süper Lig - Gelecekte eklenecek
+    // TODO: Süper Lig API bulunduğunda buraya eklenecek
+
     console.log(`✅ ${allMatches.length} maç bulundu`);
 
     return res.status(200).json({
