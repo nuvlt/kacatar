@@ -166,70 +166,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2️⃣ CollectAPI - Süper Lig
-    if (COLLECTAPI_KEY) {
-      try {
-        console.log(`🇹🇷 Süper Lig çekiliyor...`);
-        
-        // Alternatif endpoint: fixture (yaklaşan maçlar)
-        const collectUrl = `https://api.collectapi.com/football/fixture?data.league=super-lig`;
-        const collectResponse = await fetch(collectUrl, {
-          method: 'GET',
-          headers: { 
-            "authorization": `apikey ${COLLECTAPI_KEY}`,
-            "content-type": "application/json"
-          },
-        });
-
-        console.log(`CollectAPI Status: ${collectResponse.status}`);
-
-        if (collectResponse.ok) {
-          const collectData = await collectResponse.json();
-          
-          console.log(`CollectAPI Response:`, JSON.stringify(collectData).substring(0, 200));
-          
-          if (collectData.success && collectData.result) {
-            console.log(`✅ Süper Lig: ${collectData.result.length} maç`);
-            
-            for (const match of collectData.result) {
-              const homeTeam = match.home || "Unknown";
-              const awayTeam = match.away || "Unknown";
-              const matchDate = match.date; // "20.10.2024 19:00" formatı
-
-              const homeLogo = await findTeamLogo(homeTeam);
-              const awayLogo = await findTeamLogo(awayTeam);
-
-              const matchData = {
-                competition: "super-lig",
-                league: "Süper Lig",
-                home: homeTeam,
-                away: awayTeam,
-                homeTeam: homeTeam,
-                awayTeam: awayTeam,
-                date: matchDate,
-                time: matchDate,
-              };
-
-              const docId = `sl-${homeTeam}-${awayTeam}-${matchDate}`.replace(/\s+/g, "_").replace(/:/g, "-").replace(/\./g, "-");
-              
-              await saveMatch(docId, matchData, homeLogo, awayLogo);
-              totalMatches++;
-            }
-          } else {
-            console.warn(`⚠️ CollectAPI invalid response:`, collectData);
-          }
-        } else {
-          const errorText = await collectResponse.text();
-          console.error(`⚠️ CollectAPI ${collectResponse.status}:`, errorText.substring(0, 200));
-        }
-      } catch (e) {
-        console.error("CollectAPI error:", e.message, e.stack);
-      }
-    } else {
-      console.warn("⚠️ COLLECTAPI_KEY eksik, Süper Lig atlandı");
-    }
-
     console.log(`\n✅ Toplam ${totalMatches} maç`);
+
+    // 2️⃣ Süper Lig - Gelecekte eklenecek
+    // TODO: Süper Lig için uygun API bulunduğunda buraya eklenecek
+    console.log('\n🇹🇷 Süper Lig: API bekleniyor...');
 
     return res.status(200).json({
       ok: true,
