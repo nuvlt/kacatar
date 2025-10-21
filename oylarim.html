@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎯 Tahminlerim - Kaç Atar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .correct-prediction { background: linear-gradient(135deg, #10b981, #059669); }
+    .wrong-prediction { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .pending-prediction { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+  <!-- Header -->
+  <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <div class="flex items-center gap-3">
+          <div class="text-4xl">🎯</div>
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-bold">Tahminlerim</h1>
+            <p class="text-sm text-purple-100">Oylarım & Sonuçlarım</p>
+          </div>
+        </div>
+        <nav class="flex gap-4 text-sm font-semibold">
+          <a href="/" class="hover:text-purple-200 transition">Ana Sayfa</a>
+          <a href="/sonuclar.html" class="hover:text-purple-200 transition">Sonuçlar</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <section class="gradient-bg text-white py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur">
+          <p class="text-sm text-purple-100">Toplam Tahmin</p>
+          <p class="text-3xl font-bold" id="totalVotes">-</p>
+        </div>
+        <div class="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur">
+          <p class="text-sm text-purple-100">Doğru</p>
+          <p class="text-3xl font-bold text-green-300" id="correctVotes">-</p>
+        </div>
+        <div class="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur">
+          <p class="text-sm text-purple-100">Yanlış</p>
+          <p class="text-3xl font-bold text-red-300" id="wrongVotes">-</p>
+        </div>
+        <div class="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur">
+          <p class="text-sm text-purple-100">Başarı Oranı</p>
+          <p class="text-3xl font-bold text-yellow-300" id="successRate">-%</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 justify-center">
+      <button onclick="filterVotes('all')" class="filter-btn px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold">
+        Tümü
+      </button>
+      <button onclick="filterVotes('correct')" class="filter-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+        ✅ Doğru
+      </button>
+      <button onclick="filterVotes('wrong')" class="filter-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+        ❌ Yanlış
+      </button>
+      <button onclick="filterVotes('pending')" class="filter-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+        ⏳ Bekliyor
+      </button>
+    </div>
+  </div>
+
+  <!-- Votes Grid -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <div id="votesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="col-span-full text-center py-16">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+        <p class="text-gray-500 text-lg">Tahminleriniz yükleniyor...</p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    let currentUser = null;
+    let allVotes = [];
+    let currentFilter = 'all';
+
+    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%239ca3af'%3E%3F%3C/text%3E%3C/svg%3E";
+
+    const leagueNames = {
+      'PL': '⚽ Premier League',
+      'PD': '⚽ La Liga',
+      'SA': '⚽ Serie A',
+      'BL1': '⚽ Bundesliga',
+      'FL1': '⚽ Ligue 1',
+      'super-lig': '🇹🇷 Süper Lig',
+      'Süper Lig': '🇹🇷 Süper Lig',
+    };
+
+    signInAnonymously(auth).catch(console.error);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = user;
+        await loadMyVotes();
+      }
+    });
+
+    async function loadMyVotes() {
+      const container = document.getElementById('votesContainer');
+
+      try {
+        const matchesSnapshot = await getDocs(collection(db, "matches"));
+        allVotes = [];
+
+        // Sonuçları da al (live-scores API'den)
+        let liveScores = {};
+        try {
+          const scoresResponse = await fetch('/api/live-scores?filter=week');
+          if (scoresResponse.ok) {
+            const scoresData = await scoresResponse.json();
+            scoresData.matches?.forEach(m => {
+              liveScores[String(m.id)] = {
+                homeScore: m.homeScore,
+                awayScore: m.awayScore,
+                status: m.status
+              };
+            });
+          }
+        } catch (e) {
+          console.warn('Skorlar alınamadı:', e);
+        }
+
+        matchesSnapshot.forEach(doc => {
+          const match = doc.data();
+          const userVote = match.votes?.[currentUser.uid];
+
+          if (userVote) {
+            const matchId = doc.id;
+            const score = liveScores[matchId];
+            
+            let status = 'pending';
+            let actualScore = null;
+
+            if (score && score.status === 'FINISHED') {
+              actualScore = `${score.homeScore}-${score.awayScore}`;
+              status = userVote === actualScore ? 'correct' : 'wrong';
+            }
+
+            allVotes.push({
+              id: matchId,
+              home: match.home,
+              away: match.away,
+              homeLogo: match.homeLogo,
+              awayLogo: match.awayLogo,
+              league: match.league,
+              date: match.date,
+              myVote: userVote,
+              actualScore: actualScore,
+              status: status
+            });
+          }
+        });
+
+        // Tarihe göre sırala (yeniden eskiye)
+        allVotes.sort((a, b) => {
+          const dateA = new Date(a.date || 0);
+          const dateB = new Date(b.date || 0);
+          return dateB - dateA;
+        });
+
+        updateStats();
+        renderVotes();
+
+      } catch (error) {
+        console.error('Load votes error:', error);
+        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Tahminler yüklenemedi</div>';
+      }
+    }
+
+    function updateStats() {
+      const total = allVotes.length;
+      const correct = allVotes.filter(v => v.status === 'correct').length;
+      const wrong = allVotes.filter(v => v.status === 'wrong').length;
+      const successRate = total > 0 ? Math.round((correct / (correct + wrong)) * 100) || 0 : 0;
+
+      document.getElementById('totalVotes').textContent = total;
+      document.getElementById('correctVotes').textContent = correct;
+      document.getElementById('wrongVotes').textContent = wrong;
+      document.getElementById('successRate').textContent = `${successRate}%`;
+    }
+
+    function renderVotes() {
+      const container = document.getElementById('votesContainer');
+
+      let filtered = allVotes.filter(vote => {
+        if (currentFilter === 'all') return true;
+        return vote.status === currentFilter;
+      });
+
+      if (filtered.length === 0) {
+        const messages = {
+          'all': 'Henüz tahmin yapmadınız',
+          'correct': 'Henüz doğru tahmin yok',
+          'wrong': 'Yanlış tahmin yok 🎉',
+          'pending': 'Bekleyen tahmin yok'
+        };
+        container.innerHTML = `<div class="col-span-full text-center py-16"><div class="text-6xl mb-4">😊</div><p class="text-xl text-gray-500">${messages[currentFilter]}</p></div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(vote => {
+        const statusClass = vote.status === 'correct' ? 'correct-prediction' : 
+                           vote.status === 'wrong' ? 'wrong-prediction' : 
+                           'pending-prediction';
+        
+        const statusText = vote.status === 'correct' ? '✅ Doğru Tahmin!' : 
+                          vote.status === 'wrong' ? '❌ Yanlış Tahmin' : 
+                          '⏳ Maç Bekleniyor';
+        
+        const statusIcon = vote.status === 'correct' ? '🎉' : 
+                          vote.status === 'wrong' ? '😞' : 
+                          '⏰';
+
+        return `
+          <div class="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition">
+            <div class="${statusClass} px-4 py-3 text-white text-center">
+              <p class="font-bold">${statusIcon} ${statusText}</p>
+            </div>
+
+            <div class="p-6">
+              <div class="text-xs text-gray-500 mb-2 text-center">${leagueNames[vote.league] || vote.league}</div>
+              
+              <div class="grid grid-cols-3 gap-4 items-center mb-4">
+                <div class="text-center">
+                  <img src="${vote.homeLogo || PLACEHOLDER}" alt="${vote.home}" class="w-12 h-12 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
+                  <p class="font-bold text-sm">${vote.home}</p>
+                </div>
+
+                <div class="text-center">
+                  <p class="text-xs text-gray-500 mb-1">Tahminin</p>
+                  <p class="text-3xl font-bold text-purple-600">${vote.myVote}</p>
+                  ${vote.actualScore ? `<p class="text-xs text-gray-500 mt-1">Sonuç: ${vote.actualScore}</p>` : ''}
+                </div>
+
+                <div class="text-center">
+                  <img src="${vote.awayLogo || PLACEHOLDER}" alt="${vote.away}" class="w-12 h-12 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
+                  <p class="font-bold text-sm">${vote.away}</p>
+                </div>
+              </div>
+
+              <div class="text-xs text-gray-400 text-center">
+                ${new Date(vote.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.filterVotes = function(filter) {
+      currentFilter = filter;
+
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600', 'text-white');
+        btn.classList.add('bg-gray-100');
+      });
+
+      event.target.classList.remove('bg-gray-100');
+      event.target.classList.add('bg-purple-600', 'text-white');
+
+      renderVotes();
+    };
+  </script>
+</body>
+</html>
