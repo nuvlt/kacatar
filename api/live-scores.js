@@ -62,6 +62,7 @@ export default async function handler(req, res) {
 
     console.log(`📊 Teams map: ${teamsMap.size} entries`);
 
+    // 1️⃣ API-Football Ligleri
     for (const comp of competitions) {
       const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${dateFrom}&dateTo=${dateTo}&status=FINISHED,IN_PLAY`;
       
