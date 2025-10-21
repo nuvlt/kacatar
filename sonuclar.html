@@ -113,11 +113,19 @@
         const response = await fetch(`/api/live-scores?filter=${filter}`);
         
         if (!response.ok) {
-          throw new Error('API hatası');
+          throw new Error(`API hatası: ${response.status}`);
         }
 
         const data = await response.json();
+        
+        // API error check
+        if (!data.ok) {
+          throw new Error(data.error || 'API yanıt vermedi');
+        }
+        
         const liveMatches = data.matches || [];
+
+        console.log(`📊 ${liveMatches.length} maç bulundu`);
 
         // Firestore'dan tahminleri al
         const matchesSnapshot = await getDocs(collection(db, "matches"));
@@ -133,7 +141,7 @@
         });
 
         if (liveMatches.length === 0) {
-          container.innerHTML = '<div class="col-span-full text-center py-16"><div class="text-6xl mb-4">😔</div><p class="text-xl text-gray-500">Bu tarihte maç bulunamadı</p></div>';
+          container.innerHTML = '<div class="col-span-full text-center py-16"><div class="text-6xl mb-4">😔</div><p class="text-xl text-gray-500">Bu tarihte maç bulunamadı</p><p class="text-sm text-gray-400 mt-2">Farklı bir tarih seçin</p></div>';
           return;
         }
 
@@ -141,6 +149,8 @@
         container.innerHTML = liveMatches.map(match => {
           const homeTeam = match.homeTeam || 'Home';
           const awayTeam = match.awayTeam || 'Away';
+          const homeLogo = match.homeLogo || PLACEHOLDER;
+          const awayLogo = match.awayLogo || PLACEHOLDER;
           const homeScore = match.homeScore ?? '?';
           const awayScore = match.awayScore ?? '?';
           const status = match.status === 'FINISHED' ? '✅ Bitti' : '🔴 Canlı';
@@ -169,7 +179,7 @@
           }
 
           return `
-            <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div class="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition">
               <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
                 <span>${leagueNames[match.league] || match.league}</span>
                 <span class="px-2 py-1 ${statusClass} rounded-full text-xs">${status}</span>
@@ -178,7 +188,7 @@
               <div class="p-6">
                 <div class="grid grid-cols-3 gap-4 items-center mb-4">
                   <div class="text-center">
-                    <img src="${PLACEHOLDER}" alt="${homeTeam}" class="w-12 h-12 mx-auto mb-2 object-contain">
+                    <img src="${homeLogo}" alt="${homeTeam}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
                     <p class="font-bold text-sm">${homeTeam}</p>
                   </div>
 
@@ -187,7 +197,7 @@
                   </div>
 
                   <div class="text-center">
-                    <img src="${PLACEHOLDER}" alt="${awayTeam}" class="w-12 h-12 mx-auto mb-2 object-contain">
+                    <img src="${awayLogo}" alt="${awayTeam}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
                     <p class="font-bold text-sm">${awayTeam}</p>
                   </div>
                 </div>
@@ -211,7 +221,16 @@
 
       } catch (error) {
         console.error('Load results error:', error);
-        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Yükleme hatası! API çalışmıyor olabilir.</div>';
+        container.innerHTML = `
+          <div class="col-span-full text-center text-red-500 py-8">
+            <div class="text-6xl mb-4">⚠️</div>
+            <p class="text-xl font-bold mb-2">Yükleme Hatası</p>
+            <p class="text-sm text-gray-500">${error.message}</p>
+            <button onclick="loadResults('${filter}')" class="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+              🔄 Tekrar Dene
+            </button>
+          </div>
+        `;
       }
     }
 
