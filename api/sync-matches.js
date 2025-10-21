@@ -43,7 +43,8 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
   try {
     const existingDoc = await db.collection("matches").doc(docId).get();
     
-    if (existingDoc.exists()) {
+    // Admin SDK'da exists bir property, fonksiyon değil
+    if (existingDoc.exists) {
       const existing = existingDoc.data();
       const updates = {
         date: matchData.date,
@@ -170,16 +171,22 @@ export default async function handler(req, res) {
       try {
         console.log(`🇹🇷 Süper Lig çekiliyor...`);
         
-        const collectUrl = `https://api.collectapi.com/football/results?data.league=super-lig`;
+        // Alternatif endpoint: fixture (yaklaşan maçlar)
+        const collectUrl = `https://api.collectapi.com/football/fixture?data.league=super-lig`;
         const collectResponse = await fetch(collectUrl, {
+          method: 'GET',
           headers: { 
             "authorization": `apikey ${COLLECTAPI_KEY}`,
             "content-type": "application/json"
           },
         });
 
+        console.log(`CollectAPI Status: ${collectResponse.status}`);
+
         if (collectResponse.ok) {
           const collectData = await collectResponse.json();
+          
+          console.log(`CollectAPI Response:`, JSON.stringify(collectData).substring(0, 200));
           
           if (collectData.success && collectData.result) {
             console.log(`✅ Süper Lig: ${collectData.result.length} maç`);
@@ -187,7 +194,7 @@ export default async function handler(req, res) {
             for (const match of collectData.result) {
               const homeTeam = match.home || "Unknown";
               const awayTeam = match.away || "Unknown";
-              const matchDate = match.date;
+              const matchDate = match.date; // "20.10.2024 19:00" formatı
 
               const homeLogo = await findTeamLogo(homeTeam);
               const awayLogo = await findTeamLogo(awayTeam);
@@ -203,18 +210,23 @@ export default async function handler(req, res) {
                 time: matchDate,
               };
 
-              const docId = `sl-${homeTeam}-${awayTeam}-${matchDate}`.replace(/\s+/g, "_").replace(/:/g, "-");
+              const docId = `sl-${homeTeam}-${awayTeam}-${matchDate}`.replace(/\s+/g, "_").replace(/:/g, "-").replace(/\./g, "-");
               
               await saveMatch(docId, matchData, homeLogo, awayLogo);
               totalMatches++;
             }
+          } else {
+            console.warn(`⚠️ CollectAPI invalid response:`, collectData);
           }
         } else {
-          console.warn(`⚠️ CollectAPI: ${collectResponse.status}`);
+          const errorText = await collectResponse.text();
+          console.error(`⚠️ CollectAPI ${collectResponse.status}:`, errorText.substring(0, 200));
         }
       } catch (e) {
-        console.error("CollectAPI error:", e.message);
+        console.error("CollectAPI error:", e.message, e.stack);
       }
+    } else {
+      console.warn("⚠️ COLLECTAPI_KEY eksik, Süper Lig atlandı");
     }
 
     console.log(`\n✅ Toplam ${totalMatches} maç`);
