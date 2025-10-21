@@ -68,30 +68,54 @@ export default async function handler(req, res) {
         const homeTeam = match.homeTeam?.shortName || match.homeTeam?.name || "Unknown";
         const awayTeam = match.awayTeam?.shortName || match.awayTeam?.name || "Unknown";
 
-        // Teams'den logoları al
+        // Teams'den logoları al (önce nameLower, sonra name ile dene)
         let homeLogo = "";
         let awayLogo = "";
 
         try {
-          const homeSnap = await db.collection("teams")
+          // Home team logo
+          let homeSnap = await db.collection("teams")
             .where("nameLower", "==", homeTeam.toLowerCase().trim())
             .limit(1)
             .get();
           
+          if (homeSnap.empty) {
+            // Alternatif: name field'ı ile dene
+            homeSnap = await db.collection("teams")
+              .where("name", "==", homeTeam)
+              .limit(1)
+              .get();
+          }
+          
           if (!homeSnap.empty) {
             homeLogo = homeSnap.docs[0].data().logo || "";
+            console.log(`✅ ${homeTeam}: Logo bulundu`);
+          } else {
+            console.warn(`⚠️ ${homeTeam}: Teams'de yok`);
           }
 
-          const awaySnap = await db.collection("teams")
+          // Away team logo
+          let awaySnap = await db.collection("teams")
             .where("nameLower", "==", awayTeam.toLowerCase().trim())
             .limit(1)
             .get();
           
+          if (awaySnap.empty) {
+            // Alternatif: name field'ı ile dene
+            awaySnap = await db.collection("teams")
+              .where("name", "==", awayTeam)
+              .limit(1)
+              .get();
+          }
+          
           if (!awaySnap.empty) {
             awayLogo = awaySnap.docs[0].data().logo || "";
+            console.log(`✅ ${awayTeam}: Logo bulundu`);
+          } else {
+            console.warn(`⚠️ ${awayTeam}: Teams'de yok`);
           }
         } catch (e) {
-          console.warn(`Logo fetch error: ${homeTeam} vs ${awayTeam}`);
+          console.error(`Logo fetch error: ${homeTeam} vs ${awayTeam}`, e.message);
         }
 
         // Maçı kaydet
