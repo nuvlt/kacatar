@@ -117,8 +117,8 @@ export default async function handler(req, res) {
 
     let totalMatches = 0;
 
-    // 1️⃣ API-Football
-    const apiFootballComps = ["PL", "PD", "SA", "BL1", "FL1"];
+    // 1️⃣ API-Football (CL dahil)
+    const apiFootballComps = ["PL", "PD", "SA", "BL1", "FL1", "CL"];
     
     for (const comp of apiFootballComps) {
       try {
