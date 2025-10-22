@@ -29,19 +29,33 @@
   <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-20">
-        <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-3 hover:opacity-80 transition">
           <div class="text-4xl">⚽</div>
           <div>
             <h1 class="text-2xl sm:text-3xl font-bold">Kaç Atar</h1>
             <p class="text-sm text-purple-100">Futbol Tahmin Platformu</p>
           </div>
-        </div>
+        </a>
         <nav class="hidden md:flex gap-6 text-sm font-semibold">
-          <a href="#matches" class="hover:text-purple-200 transition">Maçlar</a>
+          <a href="/" class="hover:text-purple-200 transition">Maçlar</a>
           <a href="/oylarim.html" class="hover:text-purple-200 transition">Tahminlerim</a>
           <a href="/sonuclar.html" class="hover:text-purple-200 transition">Sonuçlar</a>
         </nav>
+        <!-- Mobile Menu Button -->
+        <button onclick="toggleMobileMenu()" class="md:hidden p-2 rounded-lg hover:bg-white hover:bg-opacity-20 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
       </div>
+    </div>
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="hidden md:hidden bg-white bg-opacity-10 backdrop-blur">
+      <nav class="px-4 py-3 space-y-2">
+        <a href="/" class="block py-2 px-4 rounded-lg hover:bg-white hover:bg-opacity-20 transition">⚽ Maçlar</a>
+        <a href="/oylarim.html" class="block py-2 px-4 rounded-lg hover:bg-white hover:bg-opacity-20 transition">🎯 Tahminlerim</a>
+        <a href="/sonuclar.html" class="block py-2 px-4 rounded-lg hover:bg-white hover:bg-opacity-20 transition">📊 Sonuçlar</a>
+      </nav>
     </div>
   </header>
 
