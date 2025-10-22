@@ -43,7 +43,7 @@ export default async function handler(req, res) {
     const dateFrom = from.toISOString().split('T')[0];
     const dateTo = to.toISOString().split('T')[0];
 
-    const competitions = ['PL', 'PD', 'SA', 'BL1', 'FL1'];
+    const competitions = ['PL', 'PD', 'SA', 'BL1', 'FL1', 'CL'];
     const allMatches = [];
 
     // Önce teams collection'ı bir map'e al (hızlı erişim için)
