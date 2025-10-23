@@ -168,6 +168,79 @@
     </div>
   </div>
 
+  <!-- Süper Lig Modal -->
+  <div id="superligModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+      <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+        🇹🇷 Süper Lig Maçı Ekle
+      </h3>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Ev Sahibi Takım</label>
+          <input 
+            type="text" 
+            id="slHomeTeam" 
+            placeholder="Galatasaray"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Deplasman Takımı</label>
+          <input 
+            type="text" 
+            id="slAwayTeam" 
+            placeholder="Fenerbahçe"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Tarih</label>
+          <input 
+            type="date" 
+            id="slDate" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Saat (Opsiyonel)</label>
+          <input 
+            type="time" 
+            id="slTime" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeSuperligModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+          İptal
+        </button>
+        <button onclick="addSuperligMatch()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          ➕ Ekle
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global fonksiyonlar (module scope dışında)
+    window.openSuperligModal = function() {
+      document.getElementById('superligModal').classList.remove('hidden');
+    };
+
+    window.closeSuperligModal = function() {
+      document.getElementById('superligModal').classList.add('hidden');
+      document.getElementById('slHomeTeam').value = '';
+      document.getElementById('slAwayTeam').value = '';
+      document.getElementById('slDate').value = '';
+      document.getElementById('slTime').value = '';
+    };
+  </script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -265,6 +338,55 @@
         btn.disabled = false;
         btn.textContent = originalText;
         btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    };
+
+    // Süper Lig Modal
+    window.openSuperligModal = function() {
+      document.getElementById('superligModal').classList.remove('hidden');
+    };
+
+    window.closeSuperligModal = function() {
+      document.getElementById('superligModal').classList.add('hidden');
+      document.getElementById('slHomeTeam').value = '';
+      document.getElementById('slAwayTeam').value = '';
+      document.getElementById('slDate').value = '';
+      document.getElementById('slTime').value = '';
+    };
+
+    window.addSuperligMatch = async function() {
+      const home = document.getElementById('slHomeTeam').value.trim();
+      const away = document.getElementById('slAwayTeam').value.trim();
+      const date = document.getElementById('slDate').value;
+      const time = document.getElementById('slTime').value;
+
+      if (!home || !away || !date) {
+        alert('⚠️ Lütfen tüm zorunlu alanları doldurun!');
+        return;
+      }
+
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key:');
+        if (!SECRET_KEY) return;
+
+        const response = await fetch('/api/add-superlig-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: SECRET_KEY, home, away, date, time })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+          alert(`✅ ${result.message}`);
+          closeSuperligModal();
+          await loadMatches();
+        } else {
+          alert(`❌ Hata: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Add match error:', error);
+        alert('❌ Bağlantı hatası!');
       }
     };
 
