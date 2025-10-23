@@ -182,12 +182,6 @@
       'Süper Lig': '🇹🇷 Süper Lig',
     };
 
-    // Mobile menu toggle
-    window.toggleMobileMenu = function() {
-      const menu = document.getElementById('mobileMenu');
-      menu.classList.toggle('hidden');
-    };
-
     // Anon login
     signInAnonymously(auth).catch(console.error);
     onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
@@ -278,8 +272,21 @@
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
       let filtered = allMatches.filter(match => {
-        // League filter
-        if (currentLeague !== 'all' && match.league !== currentLeague) return false;
+        // League filter - çoklu kontrolle
+        if (currentLeague !== 'all') {
+          const matchLeague = match.league || match.competition;
+          
+          // Süper Lig için özel kontrol
+          if (currentLeague === 'super-lig') {
+            const isSuperlig = matchLeague === 'super-lig' || 
+                              matchLeague === 'Süper Lig' ||
+                              match.competition === 'super-lig';
+            if (!isSuperlig) return false;
+          } else {
+            // Diğer ligler için normal kontrol
+            if (matchLeague !== currentLeague) return false;
+          }
+        }
 
         // Search filter
         if (searchTerm) {
