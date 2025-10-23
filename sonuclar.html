@@ -105,7 +105,7 @@
 
     async function loadResults(filter) {
       const container = document.getElementById('resultsContainer');
-      container.innerHTML = '<div class="col-span-full text-center py-16"><div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div><p class="text-gray-500 text-lg">Yükleniyor...</p></div>';
+      container.innerHTML = '<div class="col-span-full text-center py-16"><div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div><p class="text-gray-500 text-lg">Sonuçlar yükleniyor...</p><p class="text-sm text-gray-400 mt-2">Bu biraz zaman alabilir</p></div>';
 
       // Update buttons
       document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -124,24 +124,33 @@
         activeBtn.classList.add('bg-purple-600', 'text-white');
       }
 
-      try {
-        // API'den skorları al
-        const response = await fetch(`/api/live-scores?filter=${filter}`);
-        
-        if (!response.ok) {
-          throw new Error(`API hatası: ${response.status}`);
-        }
+      // Retry logic
+      let attempts = 0;
+      const maxAttempts = 3;
 
-        const data = await response.json();
-        
-        // API error check
-        if (!data.ok) {
-          throw new Error(data.error || 'API yanıt vermedi');
-        }
-        
-        const liveMatches = data.matches || [];
+      while (attempts < maxAttempts) {
+        try {
+          console.log(`🔄 Deneme ${attempts + 1}/${maxAttempts}...`);
 
-        console.log(`📊 ${liveMatches.length} maç bulundu`);
+          // API'den skorları al
+          const response = await fetch(`/api/live-scores?filter=${filter}`, {
+            timeout: 15000
+          });
+          
+          if (!response.ok) {
+            throw new Error(`API hatası: ${response.status}`);
+          }
+
+          const data = await response.json();
+          
+          // API error check
+          if (!data.ok) {
+            throw new Error(data.error || 'API yanıt vermedi');
+          }
+          
+          const liveMatches = data.matches || [];
+
+          console.log(`📊 ${liveMatches.length} maç bulundu`);
 
         // Firestore'dan tahminleri al
         const matchesSnapshot = await getDocs(collection(db, "matches"));
