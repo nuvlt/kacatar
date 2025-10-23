@@ -92,8 +92,11 @@
           >
         </div>
         <div class="flex gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
-          <button onclick="filterByLeague('all')" class="league-btn whitespace-nowrap px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">
+          <button onclick="filterByLeague('all')" class="league-btn whitespace-nowrap px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold shadow-lg">
             🌍 Tümü
+          </button>
+          <button onclick="filterByLeague('CL')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
+            🏆 ŞL
           </button>
           <button onclick="filterByLeague('PL')" class="league-btn whitespace-nowrap px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
             ⚽ Premier
@@ -168,8 +171,15 @@
       'SA': '⚽ Serie A',
       'BL1': '⚽ Bundesliga',
       'FL1': '⚽ Ligue 1',
+      'CL': '🏆 Şampiyonlar Ligi',
       'super-lig': '🇹🇷 Süper Lig',
       'Süper Lig': '🇹🇷 Süper Lig',
+    };
+
+    // Mobile menu toggle
+    window.toggleMobileMenu = function() {
+      const menu = document.getElementById('mobileMenu');
+      menu.classList.toggle('hidden');
     };
 
     // Anon login
