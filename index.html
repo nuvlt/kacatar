@@ -142,6 +142,12 @@
 
   <!-- Firebase + JS -->
   <script type="module">
+    // Mobile menu toggle (Global scope)
+    window.toggleMobileMenu = function() {
+      const menu = document.getElementById('mobileMenu');
+      menu.classList.toggle('hidden');
+    };
+
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
