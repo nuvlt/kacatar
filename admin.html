@@ -341,19 +341,7 @@
       }
     };
 
-    // Süper Lig Modal
-    window.openSuperligModal = function() {
-      document.getElementById('superligModal').classList.remove('hidden');
-    };
-
-    window.closeSuperligModal = function() {
-      document.getElementById('superligModal').classList.add('hidden');
-      document.getElementById('slHomeTeam').value = '';
-      document.getElementById('slAwayTeam').value = '';
-      document.getElementById('slDate').value = '';
-      document.getElementById('slTime').value = '';
-    };
-
+    // Süper Lig - Add match function
     window.addSuperligMatch = async function() {
       const home = document.getElementById('slHomeTeam').value.trim();
       const away = document.getElementById('slAwayTeam').value.trim();
@@ -379,7 +367,7 @@
 
         if (result.ok) {
           alert(`✅ ${result.message}`);
-          closeSuperligModal();
+          window.closeSuperligModal();
           await loadMatches();
         } else {
           alert(`❌ Hata: ${result.error}`);
