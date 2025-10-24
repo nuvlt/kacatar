@@ -1,4 +1,4 @@
-// api/sync-matches.js
+// api/sync-matches.js (DÜZELTÄ°LMÄ°ÅŸ)
 import admin from "firebase-admin";
 
 if (!admin.apps.length) {
@@ -43,7 +43,6 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
   try {
     const existingDoc = await db.collection("matches").doc(docId).get();
     
-    // Admin SDK'da exists bir property, fonksiyon değil
     if (existingDoc.exists) {
       const existing = existingDoc.data();
       const updates = {
@@ -87,25 +86,24 @@ export default async function handler(req, res) {
     console.log("🚀 Sync başlatılıyor...");
 
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
-    const COLLECTAPI_KEY = process.env.COLLECTAPI_KEY;
 
     if (!FOOTBALL_API_KEY) {
       return res.status(500).json({ error: "FOOTBALL_API_KEY missing" });
     }
 
-    // Tarih
+    // Tarih aralığını 30 güne çıkar (Şampiyonlar Ligi için)
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const to = new Date(from.getTime() + 10 * 24 * 60 * 60 * 1000);
+    const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 gün
     const dateFrom = from.toISOString().split("T")[0];
     const dateTo = to.toISOString().split("T")[0];
 
     console.log(`📅 ${dateFrom} → ${dateTo}`);
 
-    // Eski maçları sil
-    const yesterday = new Date(from.getTime() - 24 * 60 * 60 * 1000);
+    // Eski maçları sil (2 gün önce)
+    const twoDaysAgo = new Date(from.getTime() - 2 * 24 * 60 * 60 * 1000);
     const oldMatches = await db.collection("matches")
-      .where("date", "<", yesterday.toISOString())
+      .where("date", "<", twoDaysAgo.toISOString())
       .get();
     
     if (!oldMatches.empty) {
@@ -116,27 +114,47 @@ export default async function handler(req, res) {
     }
 
     let totalMatches = 0;
+    const errors = [];
 
-    // 1️⃣ API-Football (CL dahil)
+    // DÜZELTİLDİ: CLI yerine CL, ancak hata yönetimi eklendi
     const apiFootballComps = ["PL", "PD", "SA", "BL1", "FL1", "CL"];
     
     for (const comp of apiFootballComps) {
       try {
         const url = `https://api.football-data.org/v4/matches?competitions=${comp}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
         
+        console.log(`🔍 ${comp} sorgulanıyor...`);
+        
         const response = await fetch(url, {
           headers: { "X-Auth-Token": FOOTBALL_API_KEY },
         });
 
+        // Detaylı hata mesajı
         if (!response.ok) {
-          console.warn(`⚠️ ${comp}: ${response.status}`);
+          const errorText = await response.text();
+          console.warn(`⚠️ ${comp}: ${response.status} - ${errorText}`);
+          errors.push({
+            competition: comp,
+            status: response.status,
+            message: errorText.substring(0, 100)
+          });
+          
+          // 403 = API planı yetersiz (Şampiyonlar Ligi erişimi yok)
+          if (response.status === 403) {
+            console.error(`❌ ${comp}: API planınız bu ligi içermiyor!`);
+          }
+          
           continue;
         }
 
         const data = await response.json();
-        if (!data.matches) continue;
+        
+        if (!data.matches || data.matches.length === 0) {
+          console.log(`ℹ️ ${comp}: Hiç maç bulunamadı`);
+          continue;
+        }
 
-        console.log(`✅ ${comp}: ${data.matches.length} maç`);
+        console.log(`✅ ${comp}: ${data.matches.length} maç bulundu`);
 
         for (const match of data.matches) {
           const homeTeam = match.homeTeam?.shortName || match.homeTeam?.name || "Unknown";
@@ -162,20 +180,27 @@ export default async function handler(req, res) {
           totalMatches++;
         }
       } catch (e) {
-        console.error(`${comp} error:`, e.message);
+        console.error(`❌ ${comp} error:`, e.message);
+        errors.push({
+          competition: comp,
+          error: e.message
+        });
       }
     }
 
-    console.log(`\n✅ Toplam ${totalMatches} maç`);
-
-    // 2️⃣ Süper Lig - Gelecekte eklenecek
-    // TODO: Süper Lig için uygun API bulunduğunda buraya eklenecek
-    console.log('\n🇹🇷 Süper Lig: API bekleniyor...');
+    console.log(`\n✅ Toplam ${totalMatches} maç senkronize edildi`);
+    
+    if (errors.length > 0) {
+      console.log(`⚠️ ${errors.length} hata oluştu:`, errors);
+    }
 
     return res.status(200).json({
       ok: true,
       message: `✅ ${totalMatches} maç senkronize edildi`,
-      stats: { totalMatches },
+      stats: { 
+        totalMatches,
+        errors: errors.length > 0 ? errors : undefined
+      },
       timestamp: new Date().toISOString(),
     });
 
