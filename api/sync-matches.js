@@ -107,20 +107,17 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "FOOTBALL_API_KEY missing" });
     }
 
-    // Tarih aralığı: Son 7 gün + gelecek 60 gün
+    // Tarih aralığı: API maksimum 10 gün kabul ediyor!
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    // Geçmişe 7 gün bak (yakın zamanda oynanan maçlar için)
-    const fromAdjusted = new Date(from.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Sadece bugünden itibaren 10 gün
+    const to = new Date(from.getTime() + 10 * 24 * 60 * 60 * 1000);
     
-    // İleriye 60 gün bak (Şampiyonlar Ligi için geniş aralık)
-    const to = new Date(from.getTime() + 60 * 24 * 60 * 60 * 1000);
-    
-    const dateFrom = fromAdjusted.toISOString().split("T")[0];
+    const dateFrom = from.toISOString().split("T")[0];
     const dateTo = to.toISOString().split("T")[0];
 
-    console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (67 gün)`);
+    console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (10 gün)`);
     console.log(`📅 Bugün: ${from.toISOString().split("T")[0]}`);
 
     // Eski maçları sil (2 gün önce)
