@@ -78,12 +78,20 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
 
 export default async function handler(req, res) {
   try {
-    const { key } = req.query;
-    if (key !== process.env.SECRET_KEY) {
+    // Auth: Manuel veya Cron
+    const manualKey = req.query.key;
+    const cronSecret = req.headers['x-vercel-cron-secret'];
+    
+    const isManual = manualKey === process.env.SECRET_KEY;
+    const isCron = cronSecret !== undefined; // Vercel otomatik doğrular
+    
+    if (!isManual && !isCron) {
+      console.error("❌ Unauthorized request");
       return res.status(403).json({ error: "Unauthorized" });
     }
 
-    console.log("🚀 Sync başlatılıyor...");
+    const triggerType = isCron ? '⏰ CRON' : '👤 MANUAL';
+    console.log(`🚀 Sync başlatılıyor... (${triggerType})`);
 
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
 
@@ -91,14 +99,21 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "FOOTBALL_API_KEY missing" });
     }
 
-    // Tarih aralığını 30 güne çıkar (Şampiyonlar Ligi için)
+    // Tarih aralığı: Son 7 gün + gelecek 60 gün
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 gün
-    const dateFrom = from.toISOString().split("T")[0];
+    
+    // Geçmişe 7 gün bak (yakın zamanda oynanan maçlar için)
+    const fromAdjusted = new Date(from.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    // İleriye 60 gün bak (Şampiyonlar Ligi için geniş aralık)
+    const to = new Date(from.getTime() + 60 * 24 * 60 * 60 * 1000);
+    
+    const dateFrom = fromAdjusted.toISOString().split("T")[0];
     const dateTo = to.toISOString().split("T")[0];
 
-    console.log(`📅 ${dateFrom} → ${dateTo}`);
+    console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (67 gün)`);
+    console.log(`📅 Bugün: ${from.toISOString().split("T")[0]}`);
 
     // Eski maçları sil (2 gün önce)
     const twoDaysAgo = new Date(from.getTime() - 2 * 24 * 60 * 60 * 1000);
@@ -116,7 +131,7 @@ export default async function handler(req, res) {
     let totalMatches = 0;
     const errors = [];
 
-    // DÜZELTİLDİ: CLI yerine CL, ancak hata yönetimi eklendi
+    // DÜZELTÄ°LDÄ°: CLI yerine CL, ancak hata yönetimi eklendi
     const apiFootballComps = ["PL", "PD", "SA", "BL1", "FL1", "CL"];
     
     for (const comp of apiFootballComps) {
@@ -149,8 +164,15 @@ export default async function handler(req, res) {
 
         const data = await response.json();
         
+        // DETAYLI LOG
+        console.log(`📊 ${comp} API Response:`, {
+          count: data.resultSet?.count || 0,
+          matchCount: data.matches?.length || 0,
+          filters: data.filters
+        });
+        
         if (!data.matches || data.matches.length === 0) {
-          console.log(`ℹ️ ${comp}: Hiç maç bulunamadı`);
+          console.log(`ℹ️ ${comp}: Hiç maç bulunamadı (Tarih aralığında maç olmayabilir)`);
           continue;
         }
 
