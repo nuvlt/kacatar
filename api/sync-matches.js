@@ -78,20 +78,21 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
 
 export default async function handler(req, res) {
   try {
-    // Auth: Manuel veya Cron
+    // Auth Kontrolü
     const manualKey = req.query.key;
-    const cronSecret = req.headers['x-vercel-cron-secret'];
     
-    const isManual = manualKey === process.env.SECRET_KEY;
-    const isCron = cronSecret !== undefined; // Vercel otomatik doğrular
-    
-    if (!isManual && !isCron) {
-      console.error("❌ Unauthorized request");
-      return res.status(403).json({ error: "Unauthorized" });
+    // Manuel çağrı için key kontrolü
+    if (manualKey) {
+      if (manualKey !== process.env.SECRET_KEY) {
+        console.error("❌ Invalid manual key");
+        return res.status(403).json({ error: "Invalid key" });
+      }
+      console.log(`🚀 Sync başlatılıyor... (👤 MANUAL)`);
+    } else {
+      // Key yoksa cron olarak kabul et
+      // Vercel cron'ları query param olmadan çağırır
+      console.log(`🚀 Sync başlatılıyor... (⏰ CRON - key yok, cron olarak kabul edildi)`);
     }
-
-    const triggerType = isCron ? '⏰ CRON' : '👤 MANUAL';
-    console.log(`🚀 Sync başlatılıyor... (${triggerType})`);
 
     const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
 
