@@ -108,8 +108,13 @@ export default async function handler(req, res) {
     }
 
     // Tarih aralığı: API maksimum 10 gün kabul ediyor!
+    // ÖNEMLÄ°: UTC+3 için Türkiye saatini kullan
     const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const turkeyOffset = 3 * 60 * 60 * 1000; // +3 saat
+    const nowTurkey = new Date(now.getTime() + turkeyOffset);
+    
+    // Bugünü Türkiye saatine göre hesapla
+    const from = new Date(nowTurkey.getFullYear(), nowTurkey.getMonth(), nowTurkey.getDate());
     
     // Sadece bugünden itibaren 10 gün
     const to = new Date(from.getTime() + 10 * 24 * 60 * 60 * 1000);
@@ -118,13 +123,14 @@ export default async function handler(req, res) {
     const dateTo = to.toISOString().split("T")[0];
 
     console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (10 gün)`);
-    console.log(`📅 Bugün: ${from.toISOString().split("T")[0]}`);
+    console.log(`📅 Bugün (Türkiye): ${from.toISOString().split("T")[0]}`);
+    console.log(`📅 Bugün (UTC): ${now.toISOString().split("T")[0]}`);
 
-    // Eski maçları sil (2 gün önceki maçlar)
-    const twoDaysAgo = new Date(from.getTime() - 2 * 24 * 60 * 60 * 1000);
-    const twoDaysAgoISO = twoDaysAgo.toISOString();
+    // Eski maçları sil (1 gün önceki maçlar - Türkiye saatine göre)
+    const oneDayAgo = new Date(from.getTime() - 1 * 24 * 60 * 60 * 1000);
+    const oneDayAgoISO = oneDayAgo.toISOString();
     
-    console.log(`🗑️ ${twoDaysAgoISO} öncesi maçlar silinecek...`);
+    console.log(`🗑️ ${oneDayAgoISO} öncesi maçlar silinecek...`);
     
     const oldMatches = await db.collection("matches")
       .where("date", "<", twoDaysAgoISO)
