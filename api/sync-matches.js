@@ -120,17 +120,29 @@ export default async function handler(req, res) {
     console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (10 gün)`);
     console.log(`📅 Bugün: ${from.toISOString().split("T")[0]}`);
 
-    // Eski maçları sil (2 gün önce)
+    // Eski maçları sil (2 gün önceki maçlar)
     const twoDaysAgo = new Date(from.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const twoDaysAgoISO = twoDaysAgo.toISOString();
+    
+    console.log(`🗑️ ${twoDaysAgoISO} öncesi maçlar silinecek...`);
+    
     const oldMatches = await db.collection("matches")
-      .where("date", "<", twoDaysAgo.toISOString())
+      .where("date", "<", twoDaysAgoISO)
       .get();
     
     if (!oldMatches.empty) {
       const batch = db.batch();
-      oldMatches.forEach((doc) => batch.delete(doc.ref));
+      let deleteCount = 0;
+      
+      oldMatches.forEach((doc) => {
+        batch.delete(doc.ref);
+        deleteCount++;
+      });
+      
       await batch.commit();
-      console.log(`🧹 ${oldMatches.size} eski maç silindi`);
+      console.log(`🧹 ${deleteCount} eski maç silindi`);
+    } else {
+      console.log(`ℹ️ Silinecek eski maç yok`);
     }
 
     let totalMatches = 0;
