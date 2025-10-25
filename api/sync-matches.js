@@ -1,4 +1,4 @@
-// api/sync-matches.js (DÜZELTÄ°LMÄ°ÅŸ)
+// api/sync-matches.js
 import admin from "firebase-admin";
 
 if (!admin.apps.length) {
@@ -108,15 +108,11 @@ export default async function handler(req, res) {
     }
 
     // Tarih aralığı: API maksimum 10 gün kabul ediyor!
-    // ÖNEMLÄ°: UTC+3 için Türkiye saatini kullan
     const now = new Date();
-    const turkeyOffset = 3 * 60 * 60 * 1000; // +3 saat
+    const turkeyOffset = 3 * 60 * 60 * 1000;
     const nowTurkey = new Date(now.getTime() + turkeyOffset);
     
-    // Bugünü Türkiye saatine göre hesapla
     const from = new Date(nowTurkey.getFullYear(), nowTurkey.getMonth(), nowTurkey.getDate());
-    
-    // Sadece bugünden itibaren 10 gün
     const to = new Date(from.getTime() + 10 * 24 * 60 * 60 * 1000);
     
     const dateFrom = from.toISOString().split("T")[0];
@@ -126,7 +122,7 @@ export default async function handler(req, res) {
     console.log(`📅 Bugün (Türkiye): ${from.toISOString().split("T")[0]}`);
     console.log(`📅 Bugün (UTC): ${now.toISOString().split("T")[0]}`);
 
-    // Eski maçları sil: Şu andan 6 saat öncesi (maçın bitme süresi + buffer)
+    // Eski maçları sil: Şu andan 6 saat öncesi
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
     const sixHoursAgoISO = sixHoursAgo.toISOString();
     
@@ -134,7 +130,7 @@ export default async function handler(req, res) {
     console.log(`🕐 Şu an: ${now.toISOString()}`);
     
     const oldMatches = await db.collection("matches")
-      .where("date", "<", oneDayAgoISO)
+      .where("date", "<", sixHoursAgoISO)
       .get();
     
     if (!oldMatches.empty) {
@@ -155,7 +151,6 @@ export default async function handler(req, res) {
     let totalMatches = 0;
     const errors = [];
 
-    // DÜZELTÄ°LDÄ°: CLI yerine CL, ancak hata yönetimi eklendi
     const apiFootballComps = ["PL", "PD", "SA", "BL1", "FL1", "CL"];
     
     for (const comp of apiFootballComps) {
@@ -168,7 +163,6 @@ export default async function handler(req, res) {
           headers: { "X-Auth-Token": FOOTBALL_API_KEY },
         });
 
-        // Detaylı hata mesajı
         if (!response.ok) {
           const errorText = await response.text();
           console.warn(`⚠️ ${comp}: ${response.status} - ${errorText}`);
@@ -178,7 +172,6 @@ export default async function handler(req, res) {
             message: errorText.substring(0, 100)
           });
           
-          // 403 = API planı yetersiz (Şampiyonlar Ligi erişimi yok)
           if (response.status === 403) {
             console.error(`❌ ${comp}: API planınız bu ligi içermiyor!`);
           }
@@ -188,7 +181,6 @@ export default async function handler(req, res) {
 
         const data = await response.json();
         
-        // DETAYLI LOG
         console.log(`📊 ${comp} API Response:`, {
           count: data.resultSet?.count || 0,
           matchCount: data.matches?.length || 0,
