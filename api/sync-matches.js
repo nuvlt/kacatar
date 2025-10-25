@@ -126,11 +126,12 @@ export default async function handler(req, res) {
     console.log(`📅 Bugün (Türkiye): ${from.toISOString().split("T")[0]}`);
     console.log(`📅 Bugün (UTC): ${now.toISOString().split("T")[0]}`);
 
-    // Eski maçları sil (1 gün önceki maçlar - Türkiye saatine göre)
-    const oneDayAgo = new Date(from.getTime() - 1 * 24 * 60 * 60 * 1000);
-    const oneDayAgoISO = oneDayAgo.toISOString();
+    // Eski maçları sil: Şu andan 6 saat öncesi (maçın bitme süresi + buffer)
+    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const sixHoursAgoISO = sixHoursAgo.toISOString();
     
-    console.log(`🗑️ ${oneDayAgoISO} öncesi maçlar silinecek...`);
+    console.log(`🗑️ ${sixHoursAgoISO} öncesi maçlar silinecek...`);
+    console.log(`🕐 Şu an: ${now.toISOString()}`);
     
     const oldMatches = await db.collection("matches")
       .where("date", "<", oneDayAgoISO)
