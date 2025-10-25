@@ -133,7 +133,7 @@ export default async function handler(req, res) {
     console.log(`🗑️ ${oneDayAgoISO} öncesi maçlar silinecek...`);
     
     const oldMatches = await db.collection("matches")
-      .where("date", "<", twoDaysAgoISO)
+      .where("date", "<", oneDayAgoISO)
       .get();
     
     if (!oldMatches.empty) {
