@@ -460,6 +460,19 @@
       window.cleanupCountdowns();
 
       let filtered = allMatches.filter(match => {
+        // ⚡ YENİ: Maç saati geçmiş mi kontrol et
+        const matchDate = parseDateField(match.date, match.time);
+        if (matchDate) {
+          const now = new Date();
+          const hoursSinceMatch = (now - matchDate) / (1000 * 60 * 60);
+          
+          // Maçtan 3 saat geçtiyse gösterme (90dk + uzatmalar + buffer)
+          if (hoursSinceMatch > 3) {
+            return false;
+          }
+        }
+
+        // League filter
         if (currentLeague !== 'all') {
           const matchLeague = match.league || match.competition;
           
