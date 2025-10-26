@@ -41,7 +41,6 @@
           <a href="/oylarim.html" class="hover:text-purple-200 transition">Tahminlerim</a>
           <a href="/sonuclar.html" class="hover:text-purple-200 transition">Sonuçlar</a>
         </nav>
-        <!-- Mobile Menu Button -->
         <button onclick="toggleMobileMenu()" class="md:hidden p-2 rounded-lg hover:bg-white hover:bg-opacity-20 transition">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -49,7 +48,6 @@
         </button>
       </div>
     </div>
-    <!-- Mobile Menu -->
     <div id="mobileMenu" class="hidden md:hidden bg-white bg-opacity-10 backdrop-blur">
       <nav class="px-4 py-3 space-y-2">
         <a href="/" class="block py-2 px-4 rounded-lg hover:bg-white hover:bg-opacity-20 transition">⚽ Maçlar</a>
@@ -124,7 +122,6 @@
   <!-- Matches Grid -->
   <main id="matches" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
     <div id="matchesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Loading -->
       <div class="col-span-full text-center py-16">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
         <p class="text-gray-500 text-lg">Maçlar yükleniyor...</p>
@@ -140,16 +137,14 @@
     </div>
   </footer>
 
-  <!-- Firebase + JS -->
   <script type="module">
-    // Mobile menu toggle (Global scope)
     window.toggleMobileMenu = function() {
       const menu = document.getElementById('mobileMenu');
       menu.classList.toggle('hidden');
     };
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
@@ -182,7 +177,6 @@
       'Süper Lig': '🇹🇷 Süper Lig',
     };
 
-    // Anon login
     signInAnonymously(auth).catch(console.error);
     onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
 
@@ -243,7 +237,6 @@
           allMatches.push(m);
         });
 
-        // Sort by date
         allMatches.sort((a, b) => {
           const da = parseDateField(a.date, a.time);
           const db = parseDateField(b.date, b.time);
@@ -272,23 +265,19 @@
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
       let filtered = allMatches.filter(match => {
-        // League filter - çoklu kontrolle
         if (currentLeague !== 'all') {
           const matchLeague = match.league || match.competition;
           
-          // Süper Lig için özel kontrol
           if (currentLeague === 'super-lig') {
             const isSuperlig = matchLeague === 'super-lig' || 
                               matchLeague === 'Süper Lig' ||
                               match.competition === 'super-lig';
             if (!isSuperlig) return false;
           } else {
-            // Diğer ligler için normal kontrol
             if (matchLeague !== currentLeague) return false;
           }
         }
 
-        // Search filter
         if (searchTerm) {
           const home = (match.home || "").toLowerCase();
           const away = (match.away || "").toLowerCase();
@@ -316,35 +305,28 @@
 
         return `
           <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}">
-            <!-- League Badge -->
             <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
               <span>${leagueName}</span>
               <span class="text-xs opacity-90">${dateText}</span>
             </div>
 
-            <!-- Match Content -->
             <div class="p-6">
-              <!-- Teams -->
               <div class="grid grid-cols-3 gap-4 items-center mb-6">
-                <!-- Home -->
                 <div class="text-center">
                   <img src="${homeLogo}" alt="${escapeHtml(home)}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
                   <p class="font-bold text-sm text-gray-800">${escapeHtml(home)}</p>
                 </div>
 
-                <!-- VS -->
                 <div class="text-center">
                   <span class="text-2xl font-bold text-gray-300">VS</span>
                 </div>
 
-                <!-- Away -->
                 <div class="text-center">
                   <img src="${awayLogo}" alt="${escapeHtml(away)}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
                   <p class="font-bold text-sm text-gray-800">${escapeHtml(away)}</p>
                 </div>
               </div>
 
-              <!-- Score Inputs -->
               <div class="flex items-center justify-center gap-3 mb-4">
                 <input 
                   type="number" 
@@ -363,12 +345,10 @@
                 >
               </div>
 
-              <!-- Vote Button -->
               <button class="vote-button w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
                 🎯 Tahmin Et
               </button>
 
-              <!-- Stats -->
               <div class="mt-4 p-3 bg-gray-50 rounded-xl text-center">
                 <p class="text-xs text-gray-500 mb-1">En Popüler Tahmin</p>
                 <p class="font-bold text-lg text-purple-600">${escapeHtml(popularText)}</p>
@@ -380,7 +360,6 @@
       }).join('');
     }
 
-    // Filter by league
     window.filterByLeague = function(league) {
       currentLeague = league;
       
@@ -394,12 +373,12 @@
       renderMatches();
     };
 
-    // Search
     document.getElementById('searchInput').addEventListener('input', renderMatches);
 
-    // Vote handler
+    // Vote handler - GÜVENLÄ° BACKEND VERSÄ°YONU
     document.addEventListener("click", async (e) => {
       if (e.target.closest(".vote-button")) {
+        const btn = e.target.closest(".vote-button");
         const card = e.target.closest(".match-card");
         const matchId = card.dataset.id;
         const homeScore = card.querySelector(".home-score").value;
@@ -410,52 +389,47 @@
           return;
         }
 
+        if (!currentUser) {
+          alert("⚠️ Lütfen bekleyin, giriş yapılıyor...");
+          return;
+        }
+
         const prediction = `${homeScore}-${awayScore}`;
 
+        // Button disabled
+        btn.disabled = true;
+        btn.textContent = "⏳ Kaydediliyor...";
+
         try {
-          const matchRef = doc(db, "matches", matchId);
-          const matchSnap = await getDoc(matchRef);
-          
-          if (!matchSnap.exists()) {
-            alert("❌ Maç bulunamadı!");
-            return;
+          // Backend API'ye gönder
+          const response = await fetch('/api/submit-vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              matchId: matchId,
+              prediction: prediction,
+              userId: currentUser.uid
+            })
+          });
+
+          const result = await response.json();
+
+          if (response.ok && result.ok) {
+            alert(`✅ Tahminin kaydedildi: ${prediction}`);
+            await loadMatches();
+          } else {
+            alert(`❌ ${result.error || result.message || 'Tahmin kaydedilemedi'}`);
           }
-
-          await updateDoc(matchRef, { 
-            [`votes.${currentUser.uid}`]: prediction 
-          });
-
-          const updatedSnap = await getDoc(matchRef);
-          const votes = updatedSnap.data().votes || {};
-          const counts = {};
-          
-          Object.values(votes).forEach((p) => {
-            counts[p] = (counts[p] || 0) + 1;
-          });
-
-          let popular = null, maxCount = 0;
-          for (let [score, count] of Object.entries(counts)) {
-            if (count > maxCount) { 
-              popular = score; 
-              maxCount = count; 
-            }
-          }
-
-          await updateDoc(matchRef, { 
-            popularPrediction: popular, 
-            voteCount: maxCount 
-          });
-
-          alert(`✅ Tahminin kaydedildi: ${prediction}`);
-          await loadMatches();
         } catch (err) {
           console.error("Vote error:", err);
-          alert("❌ Tahmin kaydedilemedi: " + err.message);
+          alert("❌ Bağlantı hatası: " + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "🎯 Tahmin Et";
         }
       }
     });
 
-    // Initial load
     loadMatches();
   </script>
 </body>
