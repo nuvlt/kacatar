@@ -1,32 +1,17 @@
 # 🇹🇷 Süper Lig API Entegrasyonu
 
 ## Mevcut Durum
-Süper Lig için uygun bir API bulunmadı. CollectAPI çalışmıyor.
+Süper Lig manual ekleniyor.
 
-## Alternatif API Seçenekleri
-
-### 1. API-Football (api-football.com)
-- ✅ Profesyonel
-- ✅ Türk Süper Lig desteği var
-- ❌ Ücretli (free tier sınırlı)
-- Endpoint: `/fixtures?league=203&season=2024`
+## API Seçenekleri
 
 ### 2. TheSportsDB
 - ✅ Ücretsiz
 - ❌ Süper Lig desteği zayıf
 - Endpoint: `/eventsnextleague.php?id=4481`
 
-### 3. RapidAPI - Turkish Super Lig
-- ✅ Özel Süper Lig API'si
-- ❌ Ücretli
-- URL: https://rapidapi.com/api-sports/api/api-football
-
-### 4. Sportradar
-- ✅ Kapsamlı
-- ❌ Pahalı, enterprise
-- URL: https://sportradar.com
-
 ### 5. Football-Data.org
+- ✅ Top Ligler var - Ücretsiz
 - ❌ Süper Lig yok
 
 ## Entegrasyon Noktaları
@@ -40,9 +25,6 @@ Süper Lig API'si bulunduğunda şu dosyalara eklenmeli:
 2. **api/live-scores.js** - Satır ~80
    - TODO yorumu var
    - Sonuç çekme fonksiyonu eklenecek
-
-3. **Environment Variables**
-   - `SUPERLIG_API_KEY` eklenecek
 
 ## Test Edilmesi Gerekenler
 
