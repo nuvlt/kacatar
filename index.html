@@ -5,16 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>⚽ Kaç Atar - Futbol Tahmin Platformu</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Confetti & Countdown Scripts -->
-  <script>
-    // Confetti Effect
-    function createConfetti(){const e=["#667eea","#764ba2","#f093fb","#4facfe","#43e97b","#fa709a"],t=document.createElement("div");t.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;overflow:hidden",document.body.appendChild(t);for(let n=0;n<50;n++){const n=document.createElement("div"),o=5+10*Math.random(),r=e[Math.floor(Math.random()*e.length)],i=100*Math.random(),a=2+3*Math.random(),d=.5*Math.random();n.style.cssText=`position:absolute;width:${o}px;height:${o}px;background:${r};top:-10px;left:${i}%;opacity:1;transform:rotate(${360*Math.random()}deg);animation:confettiFall ${a}s linear ${d}s forwards`,t.appendChild(n)}document.getElementById("confetti-styles")||(()=>{const e=document.createElement("style");e.id="confetti-styles",e.textContent="@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}",document.head.appendChild(e)})(),setTimeout((()=>{t.remove()}),5e3)}function showSuccessMessage(e){const t=document.createElement("div");t.style.cssText="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:2rem 3rem;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);z-index:10000;font-size:1.5rem;font-weight:bold;text-align:center;animation:successPop .5s cubic-bezier(0.68,-0.55,0.265,1.55)",t.innerHTML=`<div style="font-size:3rem;margin-bottom:1rem">🎉</div><div>Tahminin Kaydedildi!</div><div style="font-size:2rem;margin-top:1rem;color:#ffd700">${e}</div>`,document.getElementById("success-styles")||(()=>{const e=document.createElement("style");e.id="success-styles",e.textContent="@keyframes successPop{0%{transform:translate(-50%,-50%) scale(0);opacity:0}50%{transform:translate(-50%,-50%) scale(1.1)}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}",document.head.appendChild(e)})(),document.body.appendChild(t),setTimeout((()=>{t.style.transition="opacity .3s, transform .3s",t.style.opacity="0",t.style.transform="translate(-50%,-50%) scale(0.8)",setTimeout((()=>t.remove()),300)}),2e3)}window.celebrateVote=function(e){createConfetti(),showSuccessMessage(e)};
-    
-    // Countdown Timer
-    function createCountdown(e,t){const n=new Date,o=new Date(e),r=o-n;if(r>216e5||r<0)return null;const a=document.createElement("div");function i(){const e=new Date,t=o-e;if(t<=0)return void(a.innerHTML='<div style="font-size: 1.2rem;">🔴 MAÇ BAŞLADI!</div>');const n=Math.floor(t/36e5),r=Math.floor(t%36e5/6e4),i=Math.floor(t%6e4/1e3);let d="";d=n>0?`${n} saat ${r} dakika`:r>0?`${r} dakika ${i} saniye`:`${i} saniye`,a.innerHTML=`<div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.25rem;">⏰ Maça Kalan Süre</div><div style="font-size: 1.2rem; letter-spacing: 1px;">${d}</div>`}return a.className="countdown-timer",a.style.cssText="background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;padding:.75rem;border-radius:12px;text-align:center;font-weight:bold;margin-bottom:1rem;box-shadow:0 4px 12px rgba(245,87,108,0.3)",i(),a.dataset.intervalId=setInterval(i,1e3),a}window.createCountdown=createCountdown,window.cleanupCountdowns=function(){document.querySelectorAll(".countdown-timer").forEach((e=>{const t=e.dataset.intervalId;t&&clearInterval(Number(t))}))};
-  </script>
-  
   <style>
     .gradient-bg {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -274,6 +264,11 @@
       const container = document.getElementById('matchesContainer');
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
+      // Önce eski countdown'ları temizle
+      if (window.cleanupCountdowns) {
+        window.cleanupCountdowns();
+      }
+
       let filtered = allMatches.filter(match => {
         if (currentLeague !== 'all') {
           const matchLeague = match.league || match.competition;
@@ -312,15 +307,21 @@
         const leagueName = leagueNames[match.league] || match.league || "";
         const popularText = match.popularPrediction || "—";
         const voteCount = match.voteCount || 0;
+        
+        // Countdown için maç tarihi
+        const matchDate = parseDateField(match.date, match.time);
+        const showCountdown = matchDate && (matchDate - new Date()) < 6 * 60 * 60 * 1000 && (matchDate - new Date()) > 0;
 
         return `
-          <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}">
+          <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}" data-match-date="${matchDate ? matchDate.toISOString() : ''}">
             <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
               <span>${leagueName}</span>
               <span class="text-xs opacity-90">${dateText}</span>
             </div>
 
             <div class="p-6">
+              ${showCountdown ? '<div class="countdown-container"></div>' : ''}
+              
               <div class="grid grid-cols-3 gap-4 items-center mb-6">
                 <div class="text-center">
                   <img src="${homeLogo}" alt="${escapeHtml(home)}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
@@ -368,6 +369,20 @@
           </div>
         `;
       }).join('');
+      
+      // Countdown timer'ları ekle
+      if (window.createCountdown) {
+        document.querySelectorAll('.match-card').forEach(card => {
+          const matchDate = card.dataset.matchDate;
+          const countdownContainer = card.querySelector('.countdown-container');
+          if (matchDate && countdownContainer) {
+            const countdown = window.createCountdown(matchDate, countdownContainer);
+            if (countdown) {
+              countdownContainer.appendChild(countdown);
+            }
+          }
+        });
+      }
     }
 
     window.filterByLeague = function(league) {
@@ -425,8 +440,15 @@
           const result = await response.json();
 
           if (response.ok && result.ok) {
-            alert(`✅ Tahminin kaydedildi: ${prediction}`);
-            await loadMatches();
+            // ✨ CONFETTÄ° & SUCCESS MESAJI
+            if (window.celebrateVote) {
+              window.celebrateVote(prediction);
+            }
+            
+            // 2.5 saniye sonra reload (animasyon bitsin diye)
+            setTimeout(async () => {
+              await loadMatches();
+            }, 2500);
           } else {
             alert(`❌ ${result.error || result.message || 'Tahmin kaydedilemedi'}`);
           }
