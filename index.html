@@ -333,202 +333,6 @@
       menu.classList.toggle('hidden');
     };
     
-    // ========== CONFETTI & SUCCESS MESSAGE ==========
-    window.createConfetti = function() {
-      const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-      const confettiCount = 50;
-      const container = document.createElement('div');
-      
-      container.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 9999;
-        overflow: hidden;
-      `;
-      
-      document.body.appendChild(container);
-      
-      for (let i = 0; i < confettiCount; i++) {
-        const confetti = document.createElement('div');
-        const size = Math.random() * 10 + 5;
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        const left = Math.random() * 100;
-        const animationDuration = Math.random() * 3 + 2;
-        const delay = Math.random() * 0.5;
-        
-        confetti.style.cssText = `
-          position: absolute;
-          width: ${size}px;
-          height: ${size}px;
-          background: ${color};
-          top: -10px;
-          left: ${left}%;
-          opacity: 1;
-          transform: rotate(${Math.random() * 360}deg);
-          animation: confettiFall ${animationDuration}s linear ${delay}s forwards;
-        `;
-        
-        container.appendChild(confetti);
-      }
-      
-      if (!document.getElementById('confetti-styles')) {
-        const style = document.createElement('style');
-        style.id = 'confetti-styles';
-        style.textContent = `
-          @keyframes confettiFall {
-            0% {
-              transform: translateY(0) rotate(0deg);
-              opacity: 1;
-            }
-            100% {
-              transform: translateY(100vh) rotate(720deg);
-              opacity: 0;
-            }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-      
-      setTimeout(() => {
-        container.remove();
-      }, 5000);
-    }
-
-    window.showSuccessMessage = function(prediction) {
-      const message = document.createElement('div');
-      message.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2rem 3rem;
-        border-radius: 20px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        z-index: 10000;
-        font-size: 1.5rem;
-        font-weight: bold;
-        text-align: center;
-        animation: successPop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-      `;
-      
-      message.innerHTML = `
-        <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
-        <div>Tahminin Kaydedildi!</div>
-        <div style="font-size: 2rem; margin-top: 1rem; color: #ffd700;">${prediction}</div>
-      `;
-      
-      if (!document.getElementById('success-styles')) {
-        const style = document.createElement('style');
-        style.id = 'success-styles';
-        style.textContent = `
-          @keyframes successPop {
-            0% {
-              transform: translate(-50%, -50%) scale(0);
-              opacity: 0;
-            }
-            50% {
-              transform: translate(-50%, -50%) scale(1.1);
-            }
-            100% {
-              transform: translate(-50%, -50%) scale(1);
-              opacity: 1;
-            }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-      
-      document.body.appendChild(message);
-      
-      setTimeout(() => {
-        message.style.transition = 'opacity 0.3s, transform 0.3s';
-        message.style.opacity = '0';
-        message.style.transform = 'translate(-50%, -50%) scale(0.8)';
-        setTimeout(() => message.remove(), 300);
-      }, 2000);
-    }
-
-    window.celebrateVote = function(prediction) {
-      window.createConfetti();
-      window.showSuccessMessage(prediction);
-    }
-
-    // ========== COUNTDOWN TIMER ==========
-    window.createCountdown = function(matchDate) {
-      const now = new Date();
-      const matchTime = new Date(matchDate);
-      const diff = matchTime - now;
-      
-      // 6 saatten fazla veya geçmiş ise gösterme
-      if (diff > 6 * 60 * 60 * 1000 || diff < 0) {
-        return null;
-      }
-      
-      const countdownElement = document.createElement('div');
-      countdownElement.className = 'countdown-timer';
-      countdownElement.style.cssText = `
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 0.75rem;
-        border-radius: 12px;
-        text-align: center;
-        font-weight: bold;
-        margin-bottom: 1rem;
-        box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
-      `;
-      
-      function updateCountdown() {
-        const now = new Date();
-        const diff = matchTime - now;
-        
-        if (diff <= 0) {
-          countdownElement.innerHTML = `
-            <div style="font-size: 1.2rem;">🔴 MAÇ BAŞLADI!</div>
-          `;
-          return;
-        }
-        
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        
-        let timeText = '';
-        if (hours > 0) {
-          timeText = `${hours} saat ${minutes} dakika`;
-        } else if (minutes > 0) {
-          timeText = `${minutes} dakika ${seconds} saniye`;
-        } else {
-          timeText = `${seconds} saniye`;
-        }
-        
-        countdownElement.innerHTML = `
-          <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.25rem;">⏰ Maça Kalan Süre</div>
-          <div style="font-size: 1.2rem; letter-spacing: 1px;">${timeText}</div>
-        `;
-      }
-      
-      updateCountdown();
-      const interval = setInterval(updateCountdown, 1000);
-      countdownElement.dataset.intervalId = interval;
-      
-      return countdownElement;
-    }
-
-    window.cleanupCountdowns = function() {
-      document.querySelectorAll('.countdown-timer').forEach(el => {
-        const intervalId = el.dataset.intervalId;
-        if (intervalId) {
-          clearInterval(Number(intervalId));
-        }
-      });
-    }
-
     // ========== FIREBASE & MAIN APP ==========
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -705,13 +509,14 @@
         return `
           <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}" data-match-date="${matchDate ? matchDate.toISOString() : ''}">
             <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
-              <span>${leagueName}</span>
+              <div class="flex items-center gap-2">
+                <span>${leagueName}</span>
+                <span class="countdown-container-inline"></span>
+              </div>
               <span class="text-xs opacity-90">${dateText}</span>
             </div>
 
             <div class="p-6">
-              ${showCountdown ? '<div class="countdown-container"></div>' : ''}
-              
               <div class="grid grid-cols-3 gap-4 items-center mb-6">
                 <div class="text-center">
                   <img src="${homeLogo}" alt="${escapeHtml(home)}" class="w-16 h-16 mx-auto mb-2 object-contain" onerror="this.src='${PLACEHOLDER}'">
@@ -763,7 +568,7 @@
       // Countdown timer'ları ekle
       document.querySelectorAll('.match-card').forEach(card => {
         const matchDate = card.dataset.matchDate;
-        const countdownContainer = card.querySelector('.countdown-container');
+        const countdownContainer = card.querySelector('.countdown-container-inline');
         if (matchDate && countdownContainer) {
           const countdown = window.createCountdown(matchDate);
           if (countdown) {
