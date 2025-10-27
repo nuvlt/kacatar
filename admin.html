@@ -577,12 +577,25 @@ window.saveLogoUpdate = async function() {
     return;
   }
 
+  // Admin giriş kontrolü
+  if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
+    alert('❌ Lütfen önce admin girişi yapın!');
+    return;
+  }
+
   try {
-    // SECRET_KEY iste
-    const adminKey = prompt('🔑 Admin Key:');
+    // Session'dan admin key'i al (ilk girişte kaydedilmiş olmalı)
+    let adminKey = sessionStorage.getItem('adminKey');
+    
+    // Eğer session'da yoksa sor
     if (!adminKey) {
-      alert('❌ Admin key gerekli!');
-      return;
+      adminKey = prompt('🔑 Admin Key:');
+      if (!adminKey) {
+        alert('❌ Admin key gerekli!');
+        return;
+      }
+      // Sonraki kullanımlar için kaydet
+      sessionStorage.setItem('adminKey', adminKey);
     }
 
     // Backend API'ye gönder
@@ -603,7 +616,13 @@ window.saveLogoUpdate = async function() {
       closeModal();
       await loadMatches();
     } else {
-      alert(`❌ Hata: ${result.error}`);
+      // Eğer unauthorized hatası alırsa, key'i temizle ve tekrar sor
+      if (response.status === 403) {
+        sessionStorage.removeItem('adminKey');
+        alert('❌ Geçersiz admin key! Tekrar deneyin.');
+      } else {
+        alert(`❌ Hata: ${result.error}`);
+      }
     }
   } catch (error) {
     console.error("Save error:", error);
