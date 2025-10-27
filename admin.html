@@ -1,4 +1,570 @@
-// admin.html içinde - saveLogoUpdate fonksiyonunu değiştir
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔐 Admin Panel - Logo Yönetimi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .logo-missing { border: 3px solid #ef4444; }
+    .logo-ok { border: 3px solid #10b981; }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Login Screen -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">🔐</div>
+        <h1 class="text-3xl font-bold text-gray-800">Admin Panel</h1>
+        <p class="text-gray-500 mt-2">Logo Yönetim Sistemi</p>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Kullanıcı Adı</label>
+          <input 
+            type="text" 
+            id="loginUsername" 
+            placeholder="admin"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onkeypress="if(event.key==='Enter') document.getElementById('loginPassword').focus()"
+          >
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Şifre</label>
+          <input 
+            type="password" 
+            id="loginPassword" 
+            placeholder="••••••••"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onkeypress="if(event.key==='Enter') attemptLogin()"
+          >
+        </div>
+
+        <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+
+        <button 
+          onclick="attemptLogin()" 
+          class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105"
+        >
+          🚀 Giriş Yap
+        </button>
+      </div>
+
+      <div class="mt-6 text-center text-xs text-gray-400">
+        <p>🔒 Güvenli Giriş</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Panel (Hidden by default) -->
+  <div id="mainPanel" class="hidden">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold">🔐 Admin Panel</h1>
+          <p class="text-sm text-blue-100">Logo Yönetimi & Güncelleme</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right">
+            <div class="text-sm">Toplam Maç: <span id="totalMatches" class="font-bold">-</span></div>
+            <div class="text-sm">Eksik Logo: <span id="missingCount" class="font-bold text-red-300">-</span></div>
+          </div>
+          <button onclick="manualSync()" id="syncBtn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold">
+            🔄 Maçları Güncelle
+          </button>
+          <button onclick="openSuperligModal()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold">
+            🇹🇷 Süper Lig Ekle
+          </button>
+          <button onclick="logout()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
+            🚪 Çıkış
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="bg-white rounded-lg shadow p-4 flex gap-4 items-center">
+        <div class="flex-1">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="🔍 Takım adı ara..." 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+        </div>
+        <div class="flex gap-2">
+          <button onclick="filterMatches('all')" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 ring-2 ring-blue-500 font-bold">
+            Tümü
+          </button>
+          <button onclick="filterMatches('missing')" class="filter-btn px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200">
+            Eksikler
+          </button>
+          <button onclick="filterMatches('complete')" class="filter-btn px-4 py-2 rounded-lg bg-green-100 text-green-700 hover:bg-green-200">
+            Tamamlar
+          </button>
+        </div>
+        <button onclick="loadMatches()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          🔄 Yenile
+        </button>
+      </div>
+    </div>
+
+    <!-- Matches Grid -->
+    <main class="max-w-7xl mx-auto px-6 pb-8">
+      <div id="matchesContainer" class="grid gap-4">
+        <div class="text-center text-gray-500 py-8">
+          <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div>
+          <p>Maçlar yükleniyor...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-xl font-bold mb-4">📝 Logo Güncelle</h3>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Takım Adı</label>
+          <input type="text" id="editTeamName" readonly class="w-full px-4 py-2 bg-gray-100 rounded-lg">
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Logo URL</label>
+          <input 
+            type="url" 
+            id="editLogoUrl" 
+            placeholder="https://example.com/logo.png" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">💡 İpucu: Wikipedia'dan logo URL'i alabilirsiniz</p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Önizleme</label>
+          <div class="flex justify-center p-4 bg-gray-50 rounded-lg">
+            <img id="previewImage" src="" alt="Preview" class="w-24 h-24 object-contain" style="display:none;">
+            <div id="previewPlaceholder" class="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
+              🖼️
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+            İptal
+          </button>
+          <button onclick="saveLogoUpdate()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+            💾 Kaydet
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Süper Lig Modal -->
+  <div id="superligModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+      <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+        🇹🇷 Süper Lig Maçı Ekle
+      </h3>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Ev Sahibi Takım</label>
+          <input 
+            type="text" 
+            id="slHomeTeam" 
+            placeholder="Galatasaray"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Deplasman Takımı</label>
+          <input 
+            type="text" 
+            id="slAwayTeam" 
+            placeholder="Fenerbahçe"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Tarih</label>
+          <input 
+            type="date" 
+            id="slDate" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Saat (Opsiyonel)</label>
+          <input 
+            type="time" 
+            id="slTime" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeSuperligModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+          İptal
+        </button>
+        <button onclick="addSuperligMatch()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          ➕ Ekle
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global fonksiyonlar (module scope dışında)
+    window.openSuperligModal = function() {
+      document.getElementById('superligModal').classList.remove('hidden');
+    };
+
+    window.closeSuperligModal = function() {
+      document.getElementById('superligModal').classList.add('hidden');
+      document.getElementById('slHomeTeam').value = '';
+      document.getElementById('slAwayTeam').value = '';
+      document.getElementById('slDate').value = '';
+      document.getElementById('slTime').value = '';
+    };
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allMatches = [];
+    let currentFilter = 'all';
+    let editingMatch = null;
+    let editingTeamType = null;
+
+    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23fee2e2'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%23dc2626'%3E%3F%3C/text%3E%3C/svg%3E";
+
+    // Login attempt (API call to check credentials)
+    window.attemptLogin = async function() {
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errorDiv = document.getElementById('loginError');
+
+      try {
+        const response = await fetch('/api/check-admin-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+          sessionStorage.setItem('adminLoggedIn', 'true');
+          document.getElementById('loginScreen').classList.add('hidden');
+          document.getElementById('mainPanel').classList.remove('hidden');
+          loadMatches();
+        } else {
+          errorDiv.textContent = '❌ ' + (result.message || 'Giriş başarısız!');
+          errorDiv.classList.remove('hidden');
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginPassword').focus();
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        errorDiv.textContent = '❌ Bağlantı hatası!';
+        errorDiv.classList.remove('hidden');
+      }
+    };
+
+    // Logout
+    window.logout = function() {
+      if (confirm('🚪 Çıkış yapmak istediğinize emin misiniz?')) {
+        sessionStorage.removeItem('adminLoggedIn');
+        document.getElementById('mainPanel').classList.add('hidden');
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+      }
+    };
+
+    // Manual Sync
+    window.manualSync = async function() {
+      const btn = document.getElementById('syncBtn');
+      const originalText = btn.textContent;
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ Güncelleniyor...';
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+      
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key girin:');
+        
+        if (!SECRET_KEY) {
+          alert('❌ Secret key gerekli!');
+          return;
+        }
+        
+        const response = await fetch(`/api/sync-matches?key=${SECRET_KEY}`);
+        const result = await response.json();
+        
+        if (result.ok) {
+          alert(`✅ Başarılı!\n\n${result.message}\n\nToplam: ${result.stats.totalMatches} maç`);
+          await loadMatches();
+        } else {
+          alert('❌ Hata: ' + (result.error || 'Bilinmeyen hata'));
+        }
+      } catch (error) {
+        console.error('Sync error:', error);
+        alert('❌ Bağlantı hatası!');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    };
+
+    // Süper Lig - Add match function
+    window.addSuperligMatch = async function() {
+      const home = document.getElementById('slHomeTeam').value.trim();
+      const away = document.getElementById('slAwayTeam').value.trim();
+      const date = document.getElementById('slDate').value;
+      const time = document.getElementById('slTime').value;
+
+      if (!home || !away || !date) {
+        alert('⚠️ Lütfen tüm zorunlu alanları doldurun!');
+        return;
+      }
+
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key:');
+        if (!SECRET_KEY) return;
+
+        const response = await fetch('/api/add-superlig-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: SECRET_KEY, home, away, date, time })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+          alert(`✅ ${result.message}`);
+          window.closeSuperligModal();
+          await loadMatches();
+        } else {
+          alert(`❌ Hata: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Add match error:', error);
+        alert('❌ Bağlantı hatası!');
+      }
+    };
+
+    // Check if already logged in
+    if (sessionStorage.getItem('adminLoggedIn') === 'true') {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainPanel').classList.remove('hidden');
+    }
+
+    // Load matches
+    window.loadMatches = async function() {
+      const container = document.getElementById('matchesContainer');
+      container.innerHTML = '<div class="text-center text-gray-500 py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div><p>Yükleniyor...</p></div>';
+
+      try {
+        const querySnapshot = await getDocs(collection(db, "matches"));
+        allMatches = [];
+        
+        querySnapshot.forEach((docSnap) => {
+          const match = docSnap.data();
+          match._id = docSnap.id;
+          allMatches.push(match);
+        });
+
+        allMatches.sort((a, b) => {
+          const dateA = new Date(a.date || a.time || 0);
+          const dateB = new Date(b.date || b.time || 0);
+          return dateA - dateB;
+        });
+
+        updateStats();
+        renderMatches();
+      } catch (error) {
+        console.error("Matches load error:", error);
+        container.innerHTML = '<div class="text-center text-red-500 py-8">❌ Yükleme hatası!</div>';
+      }
+    };
+
+    function updateStats() {
+      const missingCount = allMatches.reduce((count, match) => {
+        const homeMissing = !match.homeLogo || match.homeLogo === "";
+        const awayMissing = !match.awayLogo || match.awayLogo === "";
+        return count + (homeMissing ? 1 : 0) + (awayMissing ? 1 : 0);
+      }, 0);
+
+      document.getElementById('totalMatches').textContent = allMatches.length;
+      document.getElementById('missingCount').textContent = missingCount;
+    }
+
+    function renderMatches() {
+      const container = document.getElementById('matchesContainer');
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+      let filtered = allMatches.filter(match => {
+        const homeMissing = !match.homeLogo || match.homeLogo === "";
+        const awayMissing = !match.awayLogo || match.awayLogo === "";
+        const hasMissing = homeMissing || awayMissing;
+
+        if (currentFilter === 'missing' && !hasMissing) return false;
+        if (currentFilter === 'complete' && hasMissing) return false;
+
+        if (searchTerm) {
+          const home = (match.home || "").toLowerCase();
+          const away = (match.away || "").toLowerCase();
+          return home.includes(searchTerm) || away.includes(searchTerm);
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-8">😊 Hiç maç bulunamadı</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(match => {
+        const home = match.home || "Bilinmiyor";
+        const away = match.away || "Bilinmiyor";
+        const homeLogo = match.homeLogo || "";
+        const awayLogo = match.awayLogo || "";
+        const date = match.date ? new Date(match.date).toLocaleDateString('tr-TR') : "Tarih yok";
+
+        const homeClass = homeLogo ? "logo-ok" : "logo-missing";
+        const awayClass = awayLogo ? "logo-ok" : "logo-missing";
+
+        return `
+          <div class="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs text-gray-500 font-semibold">${date}</span>
+              <span class="text-xs text-gray-400">${match.league || ""}</span>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-4 items-center">
+              <div class="text-center">
+                <div class="flex justify-center mb-2">
+                  <img 
+                    src="${homeLogo || PLACEHOLDER}" 
+                    alt="${home}" 
+                    class="w-16 h-16 object-contain rounded-lg ${homeClass} cursor-pointer hover:scale-110 transition"
+                    onclick="openEditModal('${match._id}', 'home')"
+                    onerror="this.src='${PLACEHOLDER}'"
+                  >
+                </div>
+                <p class="font-semibold text-sm">${home}</p>
+                ${!homeLogo ? '<p class="text-xs text-red-500 font-semibold">❌ Logo eksik</p>' : '<p class="text-xs text-green-500">✅</p>'}
+              </div>
+
+              <div class="text-center">
+                <span class="text-2xl font-bold text-gray-400">VS</span>
+              </div>
+
+              <div class="text-center">
+                <div class="flex justify-center mb-2">
+                  <img 
+                    src="${awayLogo || PLACEHOLDER}" 
+                    alt="${away}" 
+                    class="w-16 h-16 object-contain rounded-lg ${awayClass} cursor-pointer hover:scale-110 transition"
+                    onclick="openEditModal('${match._id}', 'away')"
+                    onerror="this.src='${PLACEHOLDER}'"
+                  >
+                </div>
+                <p class="font-semibold text-sm">${away}</p>
+                ${!awayLogo ? '<p class="text-xs text-red-500 font-semibold">❌ Logo eksik</p>' : '<p class="text-xs text-green-500">✅</p>'}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.filterMatches = function(filter) {
+      currentFilter = filter;
+      
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-blue-500', 'font-bold');
+      });
+      event.target.classList.add('ring-2', 'ring-blue-500', 'font-bold');
+      
+      renderMatches();
+    };
+
+    document.getElementById('searchInput').addEventListener('input', renderMatches);
+
+    window.openEditModal = function(matchId, teamType) {
+      const match = allMatches.find(m => m._id === matchId);
+      if (!match) return;
+
+      editingMatch = match;
+      editingTeamType = teamType;
+
+      const teamName = teamType === 'home' ? match.home : match.away;
+      const currentLogo = teamType === 'home' ? match.homeLogo : match.awayLogo;
+
+      document.getElementById('editTeamName').value = teamName;
+      document.getElementById('editLogoUrl').value = currentLogo || "";
+      
+      if (currentLogo) {
+        document.getElementById('previewImage').src = currentLogo;
+        document.getElementById('previewImage').style.display = 'block';
+        document.getElementById('previewPlaceholder').style.display = 'none';
+      } else {
+        document.getElementById('previewImage').style.display = 'none';
+        document.getElementById('previewPlaceholder').style.display = 'flex';
+      }
+
+      document.getElementById('editModal').classList.remove('hidden');
+    };
+
+    window.closeModal = function() {
+      document.getElementById('editModal').classList.add('hidden');
+      editingMatch = null;
+      editingTeamType = null;
+    };
+
+    document.getElementById('editLogoUrl').addEventListener('input', (e) => {
+      const url = e.target.value.trim();
+      const preview = document.getElementById('previewImage');
+      const placeholder = document.getElementById('previewPlaceholder');
+
+      if (url) {
+        preview.src = url;
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        preview.style.display = 'none';
+        placeholder.style.display = 'flex';
+      }
+    });
+
+   // admin.html içinde - saveLogoUpdate fonksiyonunu değiştir
 
 window.saveLogoUpdate = async function() {
   if (!editingMatch || !editingTeamType) return;
@@ -43,4 +609,7 @@ window.saveLogoUpdate = async function() {
     console.error("Save error:", error);
     alert('❌ Kaydetme hatası: ' + error.message);
   }
-};
+    };
+  </script>
+</body>
+</html>
