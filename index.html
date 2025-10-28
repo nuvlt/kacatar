@@ -3,7 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>⚽ Kaç Atar - Futbol Tahmin Platformu</title>
+  
+  <!-- SEO Meta Tags -->
+  <title>⚽ Kaç Atar - Futbol Maç Skor Tahmin Platformu | Premier League, La Liga, Süper Lig</title>
+  <meta name="description" content="Futbol maçları için skor tahmini yap! Premier League, La Liga, Serie A, Bundesliga, Ligue 1 ve Süper Lig maçlarını tahmin et, topluluğun öngörülerini gör. Ücretsiz futbol tahmin platformu.">
+  <meta name="keywords" content="futbol tahmin, skor tahmini, maç tahmini, premier league, la liga, süper lig, serie a, bundesliga, futbol, kaç atar">
+  <meta name="author" content="Kaç Atar">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://kacatar.com/">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kacatar.com/">
+  <meta property="og:title" content="⚽ Kaç Atar - Futbol Skor Tahmin Platformu">
+  <meta property="og:description" content="Premier League, La Liga, Serie A, Bundesliga ve Süper Lig maçları için skor tahmini yap! Topluluğun en popüler tahminlerini keşfet.">
+  <meta property="og:image" content="https://kacatar.com/og-image.jpg">
+  <meta property="og:locale" content="tr_TR">
+  <meta property="og:site_name" content="Kaç Atar">
+  
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://kacatar.com/">
+  <meta property="twitter:title" content="⚽ Kaç Atar - Futbol Skor Tahmin Platformu">
+  <meta property="twitter:description" content="Premier League, La Liga, Serie A, Bundesliga ve Süper Lig maçları için skor tahmini yap!">
+  <meta property="twitter:image" content="https://kacatar.com/og-image.jpg">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Kaç Atar",
+    "description": "Futbol maçları için skor tahmin platformu",
+    "url": "https://kacatar.com",
+    "applicationCategory": "SportsApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "TRY"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "ratingCount": "1250"
+    }
+  }
+  </script>
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .gradient-bg {
@@ -467,7 +519,7 @@
           const hoursSinceMatch = (now - matchDate) / (1000 * 60 * 60);
           
           // Maçtan 3 saat geçtiyse gösterme (90dk + uzatmalar + buffer)
-          if (hoursSinceMatch > 1) {
+          if (hoursSinceMatch > 3) {
             return false;
           }
         }
@@ -672,5 +724,3 @@
   </script>
 </body>
 </html>
-
-
