@@ -46,11 +46,11 @@ export default async function handler(req, res) {
       });
     }
 
-    // Skor limiti (0-20 arası)
+    // Skor limiti (0-10 arası)
     const [home, away] = prediction.split('-').map(Number);
-    if (home > 20 || away > 20 || home < 0 || away < 0) {
+    if (home > 10 || away > 10 || home < 0 || away < 0) {
       return res.status(400).json({ 
-        error: 'Skor 0-20 arasında olmalı' 
+        error: 'Skor 0-10 arasında olmalı' 
       });
     }
 
