@@ -1,5 +1,5 @@
 // api/submit-vote.js
-// Güvenli oy kaydetme endpoint'i
+// Güvenli oy kaydetme endpoint'i (Gmail user stats update ile)
 
 import admin from "firebase-admin";
 
@@ -100,12 +100,40 @@ export default async function handler(req, res) {
       lastVoteAt: new Date().toISOString()
     });
 
+    // ⭐ YENİ: Eğer Gmail kullanıcısıysa stats güncelle
+    const isGoogleUser = !userId.startsWith('anon-') && userId.length > 20;
+    
+    if (isGoogleUser) {
+      try {
+        const userRef = db.collection("users").doc(userId);
+        
+        // User dokümanı var mı kontrol et
+        const userSnap = await userRef.get();
+        
+        if (userSnap.exists) {
+          // Total predictions artır
+          await userRef.update({
+            'stats.totalPredictions': admin.firestore.FieldValue.increment(1),
+            'stats.lastPrediction': new Date().toISOString()
+          });
+          
+          console.log(`📊 User stats updated: ${userId}`);
+        } else {
+          console.warn(`⚠️ User document not found: ${userId}`);
+        }
+      } catch (statsError) {
+        // Stats güncellemede hata olursa oy yine de kaydedilsin
+        console.error('Stats update error:', statsError);
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       message: 'Tahmin kaydedildi',
       prediction: prediction,
       popularPrediction: popular,
-      voteCount: maxCount
+      voteCount: maxCount,
+      isGoogleUser: isGoogleUser
     });
 
   } catch (error) {
