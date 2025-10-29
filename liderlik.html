@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  
+  <title>🏆 Lider Tablosu - Kaç Atar</title>
+  <meta name="description" content="En iyi futbol tahmin yapanları keşfet! Günlük, haftalık ve aylık lider tablosu.">
+  
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .medal-gold { color: #FFD700; }
+    .medal-silver { color: #C0C0C0; }
+    .medal-bronze { color: #CD7F32; }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Header -->
+  <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="/" class="flex items-center gap-3 hover:opacity-80 transition">
+          <div class="text-4xl">🏆</div>
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-bold">Lider Tablosu</h1>
+            <p class="text-sm text-purple-100">En İyi Tahminçiler</p>
+          </div>
+        </a>
+        <nav class="hidden md:flex gap-4 text-sm font-semibold">
+          <a href="/" class="hover:text-purple-200 transition">Maçlar</a>
+          <a href="/oylarim.html" class="hover:text-purple-200 transition">Tahminlerim</a>
+          <a href="/liderlik.html" class="hover:text-purple-200 transition">Liderlik</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filter -->
+  <div class="max-w-5xl mx-auto px-4 py-6">
+    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 justify-center">
+      <button onclick="loadLeaderboard('daily')" class="period-btn px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold">
+        📅 Günlük
+      </button>
+      <button onclick="loadLeaderboard('weekly')" class="period-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+        📊 Haftalık
+      </button>
+      <button onclick="loadLeaderboard('monthly')" class="period-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+        📈 Aylık
+      </button>
+      <button onclick="loadLeaderboard('alltime')" class="period-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+        🌟 Tüm Zamanlar
+      </button>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <main class="max-w-5xl mx-auto px-4 pb-16">
+    <div id="leaderboardContainer" class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="text-center py-16">
+        <div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+        <p class="text-gray-500">Sıralama yükleniyor...</p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, query, orderBy, limit, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let currentPeriod = 'daily';
+
+    window.loadLeaderboard = async function(period) {
+      currentPeriod = period;
+      const container = document.getElementById('leaderboardContainer');
+
+      // Update buttons
+      document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600', 'text-white');
+        btn.classList.add('bg-gray-100');
+      });
+      event.target.classList.remove('bg-gray-100');
+      event.target.classList.add('bg-purple-600', 'text-white');
+
+      container.innerHTML = '<div class="text-center py-16"><div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div><p class="text-gray-500">Yükleniyor...</p></div>';
+
+      try {
+        // TODO: Gerçek puan hesaplama sistemi gelince değişecek
+        // Şimdilik basit örnek
+        const usersQuery = query(
+          collection(db, "users"),
+          orderBy("stats.points", "desc"),
+          limit(50)
+        );
+
+        const snapshot = await getDocs(usersQuery);
+        const users = [];
+
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.stats && data.stats.points > 0) {
+            users.push({
+              uid: doc.id,
+              displayName: data.displayName || 'Anonim',
+              photoURL: data.photoURL,
+              points: data.stats.points || 0,
+              totalPredictions: data.stats.totalPredictions || 0,
+              correctPredictions: data.stats.correctPredictions || 0,
+              successRate: data.stats.totalPredictions > 0 
+                ? Math.round((data.stats.correctPredictions / data.stats.totalPredictions) * 100) 
+                : 0
+            });
+          }
+        });
+
+        if (users.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-16">
+              <div class="text-6xl mb-4">🏆</div>
+              <p class="text-xl text-gray-700 mb-2">Henüz sıralama yok</p>
+              <p class="text-gray-500">İlk sıralamaya giren sen ol!</p>
+            </div>
+          `;
+          return;
+        }
+
+        // Render
+        container.innerHTML = `
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                <tr>
+                  <th class="px-6 py-4 text-left">Sıra</th>
+                  <th class="px-6 py-4 text-left">Kullanıcı</th>
+                  <th class="px-6 py-4 text-center">Puan</th>
+                  <th class="px-6 py-4 text-center">Tahmin</th>
+                  <th class="px-6 py-4 text-center">Başarı</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                ${users.map((user, index) => {
+                  let medal = '';
+                  if (index === 0) medal = '<span class="text-3xl medal-gold">🥇</span>';
+                  else if (index === 1) medal = '<span class="text-3xl medal-silver">🥈</span>';
+                  else if (index === 2) medal = '<span class="text-3xl medal-bronze">🥉</span>';
+                  else medal = `<span class="text-gray-500 font-bold">#${index + 1}</span>`;
+
+                  return `
+                    <tr class="hover:bg-gray-50 transition">
+                      <td class="px-6 py-4 text-center">${medal}</td>
+                      <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                          <img src="${user.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.displayName)}" 
+                               alt="${user.displayName}" 
+                               class="w-10 h-10 rounded-full">
+                          <span class="font-semibold">${user.displayName}</span>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4 text-center">
+                        <span class="inline-block px-4 py-2 bg-purple-100 text-purple-700 rounded-full font-bold">
+                          ${user.points}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 text-center text-gray-600">
+                        ${user.totalPredictions}
+                      </td>
+                      <td class="px-6 py-4 text-center">
+                        <span class="text-green-600 font-semibold">${user.successRate}%</span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Leaderboard error:', error);
+        container.innerHTML = '<div class="text-center py-16 text-red-500">❌ Yükleme hatası</div>';
+      }
+    };
+
+    // Initial load
+    loadLeaderboard('daily');
+  </script>
+</body>
+</html>
