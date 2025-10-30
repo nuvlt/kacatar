@@ -265,8 +265,21 @@
     </div>
   </footer>
 
-  <!-- Confetti & Countdown - ÖNCE YÜKLENSİN -->
+  <!-- GLOBAL FUNCTIONS - Module scope'tan önce tanımlanmalı -->
   <script>
+    // ========== GLOBAL MODAL & UI FUNCTIONS ==========
+    window.openLoginModal = function() {
+      document.getElementById('loginModal').classList.remove('hidden');
+    };
+
+    window.closeLoginModal = function() {
+      document.getElementById('loginModal').classList.add('hidden');
+    };
+
+    window.toggleMobileMenu = function() {
+      document.getElementById('mobileMenu').classList.toggle('hidden');
+    };
+
     // ========== CONFETTI & SUCCESS MESSAGE ==========
     window.createConfetti = function() {
       const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
