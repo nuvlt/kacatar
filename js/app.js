@@ -290,10 +290,28 @@ async function loadMatches() {
       allMatches.push(m);
     });
 
+    // 🇹🇷 ÖNCE TARİHE GÖRE SIRALA, SONRA SÜPER LİG'İ ÖNE ÇEK
     allMatches.sort((a, b) => {
       const da = parseDateField(a.date, a.time);
       const db = parseDateField(b.date, b.time);
-      if (da && db) return da - db;
+      
+      // Tarihe göre sırala
+      if (da && db) {
+        const timeDiff = da - db;
+        
+        // Eğer aynı gün içindeyse (veya 6 saat fark varsa)
+        if (Math.abs(timeDiff) < 6 * 60 * 60 * 1000) {
+          // Süper Lig önceliği
+          const aIsSuperLig = (a.league === 'super-lig' || a.league === 'Süper Lig' || a.competition === 'super-lig');
+          const bIsSuperLig = (b.league === 'super-lig' || b.league === 'Süper Lig' || b.competition === 'super-lig');
+          
+          if (aIsSuperLig && !bIsSuperLig) return -1;
+          if (!aIsSuperLig && bIsSuperLig) return 1;
+        }
+        
+        return timeDiff;
+      }
+      
       if (da) return -1;
       if (db) return 1;
       return 0;
