@@ -1,4 +1,4 @@
-// public/js/app.js - Main Application Logic
+// public/js/app.js - Main Application Logic (FIXED)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -40,6 +40,7 @@ const leagueNames = {
 // ========== GOOGLE LOGIN ==========
 window.loginWithGoogle = async function() {
   try {
+    console.log('🔐 Google login başlatılıyor...');
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
@@ -47,9 +48,19 @@ window.loginWithGoogle = async function() {
     await saveUserProfile(user);
     window.closeLoginModal();
     showWelcomeMessage(user.displayName);
+    
+    // User info bar'ı güncelle
+    updateUserInfoBar(user);
   } catch (error) {
-    console.error('Google login error:', error);
-    if (error.code === 'auth/popup-closed-by-user') return;
+    console.error('❌ Google login error:', error);
+    if (error.code === 'auth/popup-closed-by-user') {
+      console.log('Kullanıcı popup\'ı kapattı');
+      return;
+    }
+    if (error.code === 'auth/cancelled-popup-request') {
+      console.log('Popup isteği iptal edildi');
+      return;
+    }
     alert('❌ Giriş başarısız: ' + error.message);
   }
 };
@@ -60,6 +71,7 @@ window.logout = async function() {
       await signOut(auth);
       await signInAnonymously(auth);
       document.getElementById('userInfoBar').classList.add('hidden');
+      isGoogleUser = false;
       alert('👋 Çıkış yapıldı. Misafir moduna geçildi.');
     } catch (error) {
       console.error('Logout error:', error);
@@ -70,21 +82,57 @@ window.logout = async function() {
 async function saveUserProfile(user) {
   try {
     const userRef = doc(db, "users", user.uid);
-    await setDoc(userRef, {
+    const userSnap = await getDoc(userRef);
+    
+    const userData = {
       uid: user.uid,
       email: user.email,
       displayName: user.displayName,
       photoURL: user.photoURL,
       lastLogin: new Date().toISOString(),
-      stats: {
+    };
+    
+    // Eğer kullanıcı daha önce yoksa stats başlat
+    if (!userSnap.exists()) {
+      userData.stats = {
         totalPredictions: 0,
         correctPredictions: 0,
         points: 0,
         streak: 0
-      }
-    }, { merge: true });
+      };
+    }
+    
+    await setDoc(userRef, userData, { merge: true });
+    console.log('✅ User profile saved');
   } catch (error) {
-    console.error('Save user error:', error);
+    console.error('❌ Save user error:', error);
+  }
+}
+
+function updateUserInfoBar(user) {
+  try {
+    const avatarEl = document.getElementById('userAvatar');
+    const nameEl = document.getElementById('userName');
+    const pointsEl = document.getElementById('userPoints');
+    const barEl = document.getElementById('userInfoBar');
+    
+    if (avatarEl && nameEl && pointsEl && barEl) {
+      avatarEl.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}`;
+      nameEl.textContent = user.displayName;
+      
+      // Puanları getir
+      getDoc(doc(db, "users", user.uid)).then(userDoc => {
+        if (userDoc.exists()) {
+          const points = userDoc.data().stats?.points || 0;
+          pointsEl.textContent = `${points} puan`;
+        }
+      }).catch(e => console.error('Points fetch error:', e));
+      
+      barEl.classList.remove('hidden');
+      console.log('✅ User info bar updated');
+    }
+  } catch (error) {
+    console.error('❌ Update user info bar error:', error);
   }
 }
 
@@ -111,39 +159,36 @@ function showWelcomeMessage(name) {
   }, 3000);
 }
 
+// ========== AUTH STATE LISTENER ==========
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
     
+    console.log(`👤 User authenticated: ${isGoogleUser ? 'Google' : 'Anonymous'}`);
+    
     if (isGoogleUser) {
-      document.getElementById('userAvatar').src = user.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.displayName);
-      document.getElementById('userName').textContent = user.displayName;
+      updateUserInfoBar(user);
       
-      try {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          const points = userDoc.data().stats?.points || 0;
-          document.getElementById('userPoints').textContent = `${points} puan`;
-        }
-      } catch (e) {
-        console.error('Get user points error:', e);
-      }
-      
-      document.getElementById('userInfoBar').classList.remove('hidden');
+      // Login prompt'u bir daha gösterme
+      localStorage.setItem('loginPromptShown', 'true');
     }
   } else {
+    console.log('👤 No user, signing in anonymously...');
     await signInAnonymously(auth);
   }
 });
 
+// ========== LOGIN PROMPT (5 saniye sonra) ==========
 setTimeout(() => {
   if (!isGoogleUser && !localStorage.getItem('loginPromptShown')) {
+    console.log('📢 Showing login prompt...');
     window.openLoginModal();
     localStorage.setItem('loginPromptShown', 'true');
   }
 }, 5000);
 
+// ========== DATE HELPERS ==========
 function parseDateField(dateField, timeField) {
   if (!dateField) return null;
   if (typeof dateField === "object" && typeof dateField.seconds === "number")
@@ -188,10 +233,12 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+// ========== LOAD MATCHES ==========
 async function loadMatches() {
   const container = document.getElementById('matchesContainer');
 
   try {
+    console.log('🔄 Loading matches...');
     const querySnapshot = await getDocs(collection(db, "matches"));
     allMatches = [];
     
@@ -210,10 +257,11 @@ async function loadMatches() {
       return 0;
     });
 
+    console.log(`✅ ${allMatches.length} matches loaded`);
     updateStats();
     renderMatches();
   } catch (error) {
-    console.error("Matches load error:", error);
+    console.error("❌ Matches load error:", error);
     container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Maçlar yüklenemedi</div>';
   }
 }
@@ -334,6 +382,7 @@ function renderMatches() {
   });
 }
 
+// ========== FILTER BY LEAGUE ==========
 window.filterByLeague = function(league) {
   currentLeague = league;
   document.querySelectorAll('.league-btn').forEach(btn => {
@@ -345,6 +394,7 @@ window.filterByLeague = function(league) {
   renderMatches();
 };
 
+// ========== SHARE MATCH ==========
 window.shareMatchFunc = function(matchId, home, away) {
   const url = `${window.location.origin}/mac-detay.html?id=${matchId}`;
   if (navigator.share) {
@@ -363,8 +413,10 @@ function copyToClipboard(text) {
   });
 }
 
+// ========== SEARCH ==========
 document.getElementById('searchInput').addEventListener('input', renderMatches);
 
+// ========== VOTE HANDLER ==========
 document.addEventListener("click", async (e) => {
   if (e.target.closest(".vote-button")) {
     const btn = e.target.closest(".vote-button");
@@ -397,13 +449,14 @@ document.addEventListener("click", async (e) => {
       const result = await response.json();
 
       if (response.ok && result.ok) {
+        console.log('✅ Vote submitted:', result);
         window.celebrateVote(prediction);
         setTimeout(async () => { await loadMatches(); }, 2500);
       } else {
         alert(`❌ ${result.error || result.message || 'Tahmin kaydedilemedi'}`);
       }
     } catch (err) {
-      console.error("Vote error:", err);
+      console.error("❌ Vote error:", err);
       alert("❌ Bağlantı hatası: " + err.message);
     } finally {
       btn.disabled = false;
@@ -412,7 +465,10 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+// ========== INITIAL LOAD ==========
 loadMatches();
+
+// ========== AUTO REFRESH (5 dakika) ==========
 setInterval(() => {
   console.log('🔄 Auto-refreshing...');
   renderMatches();
