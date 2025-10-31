@@ -100,6 +100,12 @@
     </div>
   </main>
 
+  <script>
+    window.toggleMobileMenu = function() {
+      document.getElementById('mobileMenu').classList.toggle('hidden');
+    };
+  </script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -130,19 +136,32 @@
       'Süper Lig': '🇹🇷 Süper Lig',
     };
 
-    signInAnonymously(auth).catch(console.error);
+    // Anonymous sign in
+    signInAnonymously(auth).catch(e => {
+      console.error('❌ Anonymous sign in error:', e);
+    });
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
+        console.log('👤 User authenticated:', user.uid);
         await loadMyVotes();
+      } else {
+        console.log('⚠️ No user found');
       }
     });
 
     async function loadMyVotes() {
       const container = document.getElementById('votesContainer');
 
+      if (!currentUser) {
+        container.innerHTML = '<div class="col-span-full text-center py-16"><div class="text-6xl mb-4">🔐</div><p class="text-xl text-gray-700 mb-4">Lütfen giriş yapın</p><a href="/" class="px-6 py-3 bg-purple-600 text-white rounded-lg inline-block hover:bg-purple-700">Ana Sayfaya Dön</a></div>';
+        return;
+      }
+
       try {
+        console.log('🔄 Loading user votes...');
+        
         const matchesSnapshot = await getDocs(collection(db, "matches"));
         allVotes = [];
 
@@ -161,7 +180,7 @@
             });
           }
         } catch (e) {
-          console.warn('Skorlar alınamadı:', e);
+          console.warn('⚠️ Skorlar alınamadı:', e);
         }
 
         matchesSnapshot.forEach(doc => {
@@ -202,12 +221,14 @@
           return dateB - dateA;
         });
 
+        console.log(`✅ ${allVotes.length} tahmin bulundu`);
+
         updateStats();
         renderVotes();
 
       } catch (error) {
-        console.error('Load votes error:', error);
-        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Tahminler yüklenemedi</div>';
+        console.error('❌ Load votes error:', error);
+        container.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">❌ Tahminler yüklenemedi<br><small>' + error.message + '</small></div>';
       }
     }
 
