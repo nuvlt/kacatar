@@ -1,4 +1,4 @@
-// public/js/app.js - Main Application Logic (FIXED + Header Login Button)
+// public/js/app.js - Main Application Logic (STANDINGS DAHIL)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -49,7 +49,6 @@ window.loginWithGoogle = async function() {
     window.closeLoginModal();
     showWelcomeMessage(user.displayName);
     
-    // User info bar'ı güncelle
     updateUserInfoBar(user);
   } catch (error) {
     console.error('❌ Google login error:', error);
@@ -71,7 +70,6 @@ window.logout = async function() {
       await signOut(auth);
       await signInAnonymously(auth);
       
-      // Header butonlarını güncelle
       updateUserInfoBar(null);
       
       isGoogleUser = false;
@@ -95,7 +93,6 @@ async function saveUserProfile(user) {
       lastLogin: new Date().toISOString(),
     };
     
-    // Eğer kullanıcı daha önce yoksa stats başlat
     if (!userSnap.exists()) {
       userData.stats = {
         totalPredictions: 0,
@@ -114,14 +111,12 @@ async function saveUserProfile(user) {
 
 function updateUserInfoBar(user) {
   try {
-    // Header'daki user info (desktop)
     const headerUserInfo = document.getElementById('headerUserInfo');
     const headerLoginBtn = document.getElementById('headerLoginBtn');
     const headerAvatar = document.getElementById('headerUserAvatar');
     const headerName = document.getElementById('headerUserName');
     const headerPoints = document.getElementById('headerUserPoints');
     
-    // Mobile user info
     const mobileUserInfo = document.getElementById('mobileUserInfo');
     const mobileLoginBtn = document.getElementById('mobileLoginBtn');
     const mobileAvatar = document.getElementById('mobileUserAvatar');
@@ -131,12 +126,10 @@ function updateUserInfoBar(user) {
     if (user) {
       const avatarUrl = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}`;
       
-      // Desktop
       if (headerAvatar && headerName && headerPoints && headerUserInfo && headerLoginBtn) {
         headerAvatar.src = avatarUrl;
         headerName.textContent = user.displayName;
         
-        // Puanları getir
         getDoc(doc(db, "users", user.uid)).then(userDoc => {
           if (userDoc.exists()) {
             const points = userDoc.data().stats?.points || 0;
@@ -149,7 +142,6 @@ function updateUserInfoBar(user) {
         headerLoginBtn.classList.add('hidden');
       }
       
-      // Mobile
       if (mobileAvatar && mobileName && mobilePoints && mobileUserInfo && mobileLoginBtn) {
         mobileAvatar.src = avatarUrl;
         mobileName.textContent = user.displayName;
@@ -160,7 +152,6 @@ function updateUserInfoBar(user) {
       
       console.log('✅ Header user info updated');
     } else {
-      // Logged out - show login buttons
       if (headerLoginBtn && headerUserInfo) {
         headerLoginBtn.classList.remove('hidden');
         headerUserInfo.classList.add('hidden');
@@ -208,11 +199,8 @@ onAuthStateChanged(auth, async (user) => {
     
     if (isGoogleUser) {
       updateUserInfoBar(user);
-      
-      // Login prompt'u bir daha gösterme
       localStorage.setItem('loginPromptShown', 'true');
     } else {
-      // Anonymous user - show login buttons
       updateUserInfoBar(null);
     }
   } else {
@@ -221,7 +209,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// ========== LOGIN PROMPT (5 saniye sonra) ==========
+// ========== LOGIN PROMPT ==========
 setTimeout(() => {
   if (!isGoogleUser && !localStorage.getItem('loginPromptShown')) {
     console.log('📢 Showing login prompt...');
@@ -290,10 +278,26 @@ async function loadMatches() {
       allMatches.push(m);
     });
 
+    // Sıralama: Tarihe göre + Süper Lig önceliği
     allMatches.sort((a, b) => {
       const da = parseDateField(a.date, a.time);
       const db = parseDateField(b.date, b.time);
-      if (da && db) return da - db;
+      
+      if (da && db) {
+        const timeDiff = da - db;
+        
+        // Aynı gün içindeyse Süper Lig önceliği
+        if (Math.abs(timeDiff) < 6 * 60 * 60 * 1000) {
+          const aIsSuperLig = (a.league === 'super-lig' || a.league === 'Süper Lig' || a.competition === 'super-lig');
+          const bIsSuperLig = (b.league === 'super-lig' || b.league === 'Süper Lig' || b.competition === 'super-lig');
+          
+          if (aIsSuperLig && !bIsSuperLig) return -1;
+          if (!aIsSuperLig && bIsSuperLig) return 1;
+        }
+        
+        return timeDiff;
+      }
+      
       if (da) return -1;
       if (db) return 1;
       return 0;
@@ -368,19 +372,21 @@ function renderMatches() {
     return `
       <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}" data-match-date="${matchDate ? matchDate.toISOString() : ''}">
         <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
-  <div class="flex items-center gap-2">
-    <button 
-      onclick="window.openStandings('${match.league}', '${leagueName}')" 
-      class="hover:underline hover:bg-white hover:bg-opacity-20 px-2 py-1 rounded transition flex items-center gap-1"
-      title="Puan durumunu gör"
-    >
-      <span>${leagueName}</span>
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-      </svg>
-    </button>
-    <span class="countdown-container-inline"></span>
-  </div>
+          <div class="flex items-center gap-2">
+            <button 
+              onclick="window.openStandings('${match.league}', '${escapeHtml(leagueName)}')" 
+              class="hover:underline hover:bg-white hover:bg-opacity-20 px-2 py-1 rounded transition flex items-center gap-1"
+              title="Puan durumunu gör"
+            >
+              <span>${leagueName}</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+            <span class="countdown-container-inline"></span>
+          </div>
+          <span class="text-xs opacity-90">${dateText}</span>
+        </div>
 
         <div class="p-6">
           <div class="grid grid-cols-3 gap-4 items-center mb-6">
@@ -517,7 +523,7 @@ document.addEventListener("click", async (e) => {
 // ========== INITIAL LOAD ==========
 loadMatches();
 
-// ========== AUTO REFRESH (5 dakika) ==========
+// ========== AUTO REFRESH ==========
 setInterval(() => {
   console.log('🔄 Auto-refreshing...');
   renderMatches();
