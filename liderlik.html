@@ -32,10 +32,20 @@
             <p class="text-sm text-purple-100">En İyi Tahminçiler</p>
           </div>
         </a>
-        <nav class="hidden md:flex gap-4 text-sm font-semibold">
+        <nav class="hidden md:flex gap-4 text-sm font-semibold items-center">
           <a href="/" class="hover:text-purple-200 transition">Maçlar</a>
           <a href="/oylarim.html" class="hover:text-purple-200 transition">Tahminlerim</a>
+          <a href="/sonuclar.html" class="hover:text-purple-200 transition">Sonuçlar</a>
           <a href="/liderlik.html" class="hover:text-purple-200 transition">Liderlik</a>
+          
+          <!-- User Info -->
+          <div id="headerUserInfo" class="hidden flex items-center gap-3 bg-white bg-opacity-20 px-4 py-2 rounded-lg backdrop-blur">
+            <img id="headerUserAvatar" src="" alt="User" class="w-8 h-8 rounded-full">
+            <div>
+              <p id="headerUserName" class="font-bold text-sm"></p>
+              <p id="headerUserPoints" class="text-xs text-purple-100">0 puan</p>
+            </div>
+          </div>
         </nav>
       </div>
     </div>
@@ -71,25 +81,72 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, query, orderBy, limit, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
       authDomain: "kac-atar.firebaseapp.com",
       projectId: "kac-atar",
+      storageBucket: "kac-atar.firebasestorage.app",
+      messagingSenderId: "1070494452209",
+      appId: "1:1070494452209:web:e24a9bbd0b4fb543a79c50"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
 
     let currentPeriod = 'daily';
+    let currentUser = null;
+    let isGoogleUser = false;
 
-    // Global fonksiyon - event parametresi ile
+    // ========== AUTH STATE LISTENER ==========
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = user;
+        isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
+        
+        console.log('👤 User authenticated:', {
+          uid: user.uid,
+          isGoogle: isGoogleUser
+        });
+        
+        if (isGoogleUser) {
+          updateHeaderUserInfo(user);
+        }
+      } else {
+        console.log('👤 Anonymous user');
+      }
+    });
+
+    function updateHeaderUserInfo(user) {
+      const headerUserInfo = document.getElementById('headerUserInfo');
+      const headerAvatar = document.getElementById('headerUserAvatar');
+      const headerName = document.getElementById('headerUserName');
+      const headerPoints = document.getElementById('headerUserPoints');
+      
+      if (headerAvatar && headerName && headerPoints && headerUserInfo) {
+        headerAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}`;
+        headerName.textContent = user.displayName;
+        
+        getDoc(doc(db, "users", user.uid)).then(userDoc => {
+          if (userDoc.exists()) {
+            const points = userDoc.data().stats?.points || 0;
+            headerPoints.textContent = `${points} puan`;
+          }
+        }).catch(e => console.error('Points fetch error:', e));
+        
+        headerUserInfo.classList.remove('hidden');
+      }
+    }
+
+    // Global fonksiyon
     window.loadLeaderboard = async function(period, event) {
       currentPeriod = period;
       const container = document.getElementById('leaderboardContainer');
 
-      // Update buttons - event parametresi kullanılarak
+      // Update buttons
       document.querySelectorAll('.period-btn').forEach(btn => {
         btn.classList.remove('bg-purple-600', 'text-white');
         btn.classList.add('bg-gray-100');
@@ -105,7 +162,6 @@
       try {
         console.log(`📊 Loading leaderboard: ${period}`);
         
-        // users collection'dan Google ile giriş yapmış kullanıcıları çek
         const usersQuery = query(
           collection(db, "users"),
           orderBy("stats.points", "desc"),
@@ -118,7 +174,6 @@
         snapshot.forEach(doc => {
           const data = doc.data();
           
-          // Sadece gerçek kullanıcıları al (anonim değil ve stats var)
           if (data.email && data.displayName && data.stats) {
             users.push({
               uid: doc.id,
@@ -172,11 +227,14 @@
                   else if (index === 2) medal = '<span class="text-3xl medal-bronze">🥉</span>';
                   else medal = `<span class="text-gray-500 font-bold">#${index + 1}</span>`;
 
-                  // Avatar URL - fallback ile
                   const avatarUrl = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=667eea&color=fff`;
 
+                  // Highlight current user
+                  const isCurrentUser = currentUser && user.uid === currentUser.uid;
+                  const rowClass = isCurrentUser ? 'bg-purple-50' : '';
+
                   return `
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-gray-50 transition ${rowClass}">
                       <td class="px-6 py-4 text-center">${medal}</td>
                       <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
@@ -184,7 +242,7 @@
                                alt="${user.displayName}" 
                                class="w-10 h-10 rounded-full"
                                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=667eea&color=fff'">
-                          <span class="font-semibold">${user.displayName}</span>
+                          <span class="font-semibold ${isCurrentUser ? 'text-purple-700' : ''}">${user.displayName} ${isCurrentUser ? '(Sen)' : ''}</span>
                         </div>
                       </td>
                       <td class="px-6 py-4 text-center">
@@ -221,7 +279,7 @@
       }
     };
 
-    // Initial load - event olmadan
+    // Initial load
     loadLeaderboard('daily', null);
   </script>
 </body>
