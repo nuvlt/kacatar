@@ -368,12 +368,19 @@ function renderMatches() {
     return `
       <div class="match-card bg-white rounded-2xl shadow-md overflow-hidden" data-id="${matchId}" data-match-date="${matchDate ? matchDate.toISOString() : ''}">
         <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-white text-sm font-semibold flex justify-between items-center">
-          <div class="flex items-center gap-2">
-            <span>${leagueName}</span>
-            <span class="countdown-container-inline"></span>
-          </div>
-          <span class="text-xs opacity-90">${dateText}</span>
-        </div>
+  <div class="flex items-center gap-2">
+    <button 
+      onclick="window.openStandings('${match.league}', '${leagueName}')" 
+      class="hover:underline hover:bg-white hover:bg-opacity-20 px-2 py-1 rounded transition flex items-center gap-1"
+      title="Puan durumunu gör"
+    >
+      <span>${leagueName}</span>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+      </svg>
+    </button>
+    <span class="countdown-container-inline"></span>
+  </div>
 
         <div class="p-6">
           <div class="grid grid-cols-3 gap-4 items-center mb-6">
