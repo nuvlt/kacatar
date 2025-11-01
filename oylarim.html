@@ -249,11 +249,13 @@ async function loadMyVotes() {
       return;
     }
 
-    // Sonuçları al (tüm ligler yerine sadece week)
+    // 🚀 SADECE OY VERİLEN MAÇLARIN SKORLARINI ÇEK
     let liveScores = {};
     try {
-      console.log('🔄 Skorlar getiriliyor...');
-      const scoresResponse = await fetch('/api/live-scores?filter=week');
+      const matchIds = userVotedMatches.map(m => m.id).join(',');
+      console.log(`🎯 ${userVotedMatches.length} maç için skorlar isteniyor...`);
+      
+      const scoresResponse = await fetch(`/api/live-scores?matchIds=${matchIds}`);
       
       if (scoresResponse.ok) {
         const scoresData = await scoresResponse.json();
@@ -288,7 +290,7 @@ async function loadMyVotes() {
       };
     });
 
-    // Tarihe göre sırala (yeniden eskiye)
+    // Tarihe göre sırala
     allVotes.sort((a, b) => {
       const dateA = new Date(a.date || 0);
       const dateB = new Date(b.date || 0);
