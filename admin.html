@@ -261,7 +261,9 @@
 
     const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23fee2e2'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%23dc2626'%3E%3F%3C/text%3E%3C/svg%3E";
 
-  // Login attempt (API call to check credentials)
+    // ========== YENİ API ENDPOINT: /api/admin ==========
+    
+    // Login attempt
     window.attemptLogin = async function() {
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
@@ -341,7 +343,7 @@
       }
     };
 
-    // Süper Lig - Add match function
+    // Süper Lig - Add match function (YENİ API)
     window.addSuperligMatch = async function() {
       const home = document.getElementById('slHomeTeam').value.trim();
       const away = document.getElementById('slAwayTeam').value.trim();
@@ -357,7 +359,7 @@
         const SECRET_KEY = prompt('🔑 Secret Key:');
         if (!SECRET_KEY) return;
 
-        const response = await fetch('/api/add-superlig-match', {
+        const response = await fetch('/api/admin?action=add-superlig-match', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: SECRET_KEY, home, away, date, time })
@@ -564,70 +566,63 @@
       }
     });
 
-   // admin.html içinde - saveLogoUpdate fonksiyonunu değiştir
+    // ========== YENİ: Logo Update API ==========
+    window.saveLogoUpdate = async function() {
+      if (!editingMatch || !editingTeamType) return;
 
-window.saveLogoUpdate = async function() {
-  if (!editingMatch || !editingTeamType) return;
+      const newLogoUrl = document.getElementById('editLogoUrl').value.trim();
+      const teamName = editingTeamType === 'home' ? editingMatch.home : editingMatch.away;
 
-  const newLogoUrl = document.getElementById('editLogoUrl').value.trim();
-  const teamName = editingTeamType === 'home' ? editingMatch.home : editingMatch.away;
-
-  if (!newLogoUrl) {
-    alert('⚠️ Lütfen bir logo URL\'i girin!');
-    return;
-  }
-
-  // Admin giriş kontrolü
-  if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
-    alert('❌ Lütfen önce admin girişi yapın!');
-    return;
-  }
-
-  try {
-    // Session'dan admin key'i al (ilk girişte kaydedilmiş olmalı)
-    let adminKey = sessionStorage.getItem('adminKey');
-    
-    // Eğer session'da yoksa sor
-    if (!adminKey) {
-      adminKey = prompt('🔑 Admin Key:');
-      if (!adminKey) {
-        alert('❌ Admin key gerekli!');
+      if (!newLogoUrl) {
+        alert('⚠️ Lütfen bir logo URL\'i girin!');
         return;
       }
-      // Sonraki kullanımlar için kaydet
-      sessionStorage.setItem('adminKey', adminKey);
-    }
 
-    // Backend API'ye gönder
-    const response = await fetch('/api/update-logo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        teamName: teamName,
-        logoUrl: newLogoUrl,
-        adminKey: adminKey
-      })
-    });
-
-    const result = await response.json();
-
-    if (response.ok && result.ok) {
-      alert(`✅ ${result.message}\n${result.updatedMatches} maç güncellendi.`);
-      closeModal();
-      await loadMatches();
-    } else {
-      // Eğer unauthorized hatası alırsa, key'i temizle ve tekrar sor
-      if (response.status === 403) {
-        sessionStorage.removeItem('adminKey');
-        alert('❌ Geçersiz admin key! Tekrar deneyin.');
-      } else {
-        alert(`❌ Hata: ${result.error}`);
+      if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
+        alert('❌ Lütfen önce admin girişi yapın!');
+        return;
       }
-    }
-  } catch (error) {
-    console.error("Save error:", error);
-    alert('❌ Kaydetme hatası: ' + error.message);
-  }
+
+      try {
+        let adminKey = sessionStorage.getItem('adminKey');
+        
+        if (!adminKey) {
+          adminKey = prompt('🔑 Admin Key:');
+          if (!adminKey) {
+            alert('❌ Admin key gerekli!');
+            return;
+          }
+          sessionStorage.setItem('adminKey', adminKey);
+        }
+
+        const response = await fetch('/api/admin?action=update-logo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            teamName: teamName,
+            logoUrl: newLogoUrl,
+            adminKey: adminKey
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.ok) {
+          alert(`✅ ${result.message}\n${result.updatedMatches} maç güncellendi.`);
+          closeModal();
+          await loadMatches();
+        } else {
+          if (response.status === 403) {
+            sessionStorage.removeItem('adminKey');
+            alert('❌ Geçersiz admin key! Tekrar deneyin.');
+          } else {
+            alert(`❌ Hata: ${result.error}`);
+          }
+        }
+      } catch (error) {
+        console.error("Save error:", error);
+        alert('❌ Kaydetme hatası: ' + error.message);
+      }
     };
   </script>
 </body>
