@@ -1,4 +1,6 @@
 // api/sync-matches.js
+// Predictions collection'a dokunmaz, sadece matches collection'ı temizler
+
 import admin from "firebase-admin";
 
 if (!admin.apps.length) {
@@ -51,6 +53,7 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
         syncedAt: new Date().toISOString(),
       };
       
+      // Logoları sadece yoksa güncelle
       if (!existing.homeLogo || existing.homeLogo === "") {
         if (homeLogo) updates.homeLogo = homeLogo;
       }
@@ -61,11 +64,12 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
       
       await db.collection("matches").doc(docId).update(updates);
     } else {
+      // Yeni maç - votes'u boş bırak (artık predictions'ta tutuluyor)
       await db.collection("matches").doc(docId).set({
         ...matchData,
         homeLogo: homeLogo,
         awayLogo: awayLogo,
-        votes: {},
+        votes: {}, // Boş - artık kullanılmıyor
         popularPrediction: null,
         voteCount: 0,
         syncedAt: new Date().toISOString(),
@@ -78,7 +82,6 @@ async function saveMatch(docId, matchData, homeLogo, awayLogo) {
 
 export default async function handler(req, res) {
   try {
-    // DEBUG: Gelen isteği logla
     console.log("📥 Incoming request:", {
       query: req.query,
       headers: {
@@ -91,7 +94,6 @@ export default async function handler(req, res) {
     // Auth Kontrolü
     const manualKey = req.query.key;
     
-    // Key undefined veya empty string ise cron
     if (!manualKey || manualKey === '') {
       console.log(`🚀 Sync başlatılıyor... (⏰ CRON - key yok)`);
     } else if (manualKey === process.env.SECRET_KEY) {
@@ -107,7 +109,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "FOOTBALL_API_KEY missing" });
     }
 
-    // Tarih aralığı: API maksimum 10 gün kabul ediyor!
     const now = new Date();
     const turkeyOffset = 3 * 60 * 60 * 1000;
     const nowTurkey = new Date(now.getTime() + turkeyOffset);
@@ -119,15 +120,13 @@ export default async function handler(req, res) {
     const dateTo = to.toISOString().split("T")[0];
 
     console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (10 gün)`);
-    console.log(`📅 Bugün (Türkiye): ${from.toISOString().split("T")[0]}`);
-    console.log(`📅 Bugün (UTC): ${now.toISOString().split("T")[0]}`);
 
-    // Eski maçları sil: Şu andan 6 saat öncesi
+    // ========== YENİ: Eski maçları sil (Predictions'a dokunma) ==========
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
     const sixHoursAgoISO = sixHoursAgo.toISOString();
     
     console.log(`🗑️ ${sixHoursAgoISO} öncesi maçlar silinecek...`);
-    console.log(`🕐 Şu an: ${now.toISOString()}`);
+    console.log(`⚠️ NOT: Predictions collection'daki tahminler KORUNACAK`);
     
     const oldMatches = await db.collection("matches")
       .where("date", "<", sixHoursAgoISO)
@@ -138,12 +137,14 @@ export default async function handler(req, res) {
       let deleteCount = 0;
       
       oldMatches.forEach((doc) => {
+        // Sadece matches collection'dan sil
+        // Predictions collection'a dokunma
         batch.delete(doc.ref);
         deleteCount++;
       });
       
       await batch.commit();
-      console.log(`🧹 ${deleteCount} eski maç silindi`);
+      console.log(`🧹 ${deleteCount} eski maç silindi (tahminler korundu)`);
     } else {
       console.log(`ℹ️ Silinecek eski maç yok`);
     }
@@ -181,14 +182,8 @@ export default async function handler(req, res) {
 
         const data = await response.json();
         
-        console.log(`📊 ${comp} API Response:`, {
-          count: data.resultSet?.count || 0,
-          matchCount: data.matches?.length || 0,
-          filters: data.filters
-        });
-        
         if (!data.matches || data.matches.length === 0) {
-          console.log(`ℹ️ ${comp}: Hiç maç bulunamadı (Tarih aralığında maç olmayabilir)`);
+          console.log(`ℹ️ ${comp}: Hiç maç bulunamadı`);
           continue;
         }
 
@@ -234,7 +229,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      message: `✅ ${totalMatches} maç senkronize edildi`,
+      message: `✅ ${totalMatches} maç senkronize edildi. Tahminler korundu.`,
       stats: { 
         totalMatches,
         errors: errors.length > 0 ? errors : undefined
