@@ -1,5 +1,5 @@
 // api/submit-vote.js
-// Güvenli oy kaydetme endpoint'i (Gmail user stats update ile)
+// Tahminleri ayrı predictions collection'ında tut
 
 import admin from "firebase-admin";
 
@@ -73,7 +73,27 @@ export default async function handler(req, res) {
       });
     }
 
-    // Oyu kaydet
+    // ========== YENİ: Predictions collection'a kaydet ==========
+    const predictionId = `${userId}_${matchId}`;
+    const predictionRef = db.collection("predictions").doc(predictionId);
+    
+    await predictionRef.set({
+      userId: userId,
+      matchId: matchId,
+      prediction: prediction,
+      homeTeam: matchData.home || matchData.homeTeam,
+      awayTeam: matchData.away || matchData.awayTeam,
+      homeLogo: matchData.homeLogo || "",
+      awayLogo: matchData.awayLogo || "",
+      league: matchData.league || matchData.competition,
+      matchDate: matchData.date || matchData.time,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'pending', // pending, correct, wrong
+      points: 0
+    });
+
+    // ========== Matches collection'a da kaydet (popüler tahmin için) ==========
     const votes = matchData.votes || {};
     votes[userId] = prediction;
 
@@ -100,29 +120,23 @@ export default async function handler(req, res) {
       lastVoteAt: new Date().toISOString()
     });
 
-    // ⭐ YENİ: Eğer Gmail kullanıcısıysa stats güncelle
+    // ========== User stats güncelle (Gmail kullanıcıları için) ==========
     const isGoogleUser = !userId.startsWith('anon-') && userId.length > 20;
     
     if (isGoogleUser) {
       try {
         const userRef = db.collection("users").doc(userId);
-        
-        // User dokümanı var mı kontrol et
         const userSnap = await userRef.get();
         
-        if (userSnap.exists) {
-          // Total predictions artır
+        if (userSnap.exists()) {
           await userRef.update({
             'stats.totalPredictions': admin.firestore.FieldValue.increment(1),
             'stats.lastPrediction': new Date().toISOString()
           });
           
           console.log(`📊 User stats updated: ${userId}`);
-        } else {
-          console.warn(`⚠️ User document not found: ${userId}`);
         }
       } catch (statsError) {
-        // Stats güncellemede hata olursa oy yine de kaydedilsin
         console.error('Stats update error:', statsError);
       }
     }
@@ -133,7 +147,8 @@ export default async function handler(req, res) {
       prediction: prediction,
       popularPrediction: popular,
       voteCount: maxCount,
-      isGoogleUser: isGoogleUser
+      isGoogleUser: isGoogleUser,
+      savedToPredictions: true
     });
 
   } catch (error) {
