@@ -93,14 +93,15 @@ export default async function handler(req, res) {
       points: 0
     });
 
-    // ========== Matches collection'a da kaydet (popüler tahmin için) ==========
-    const votes = matchData.votes || {};
-    votes[userId] = prediction;
+    // ========== Popüler tahmini hesapla (predictions'tan) ==========
+    const allPredictionsQuery = await db.collection("predictions")
+      .where("matchId", "==", matchId)
+      .get();
 
-    // En popüler tahmini hesapla
     const counts = {};
-    Object.values(votes).forEach((p) => {
-      counts[p] = (counts[p] || 0) + 1;
+    allPredictionsQuery.forEach(predDoc => {
+      const pred = predDoc.data().prediction;
+      counts[pred] = (counts[pred] || 0) + 1;
     });
 
     let popular = null;
@@ -112,12 +113,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // Güncelle
+    // Matches'e yaz (sadece popüler tahmin için)
     await matchRef.update({
-      votes: votes,
       popularPrediction: popular,
       voteCount: maxCount,
-      lastVoteAt: new Date().toISOString()
+      lastVoteAt: new Date().toISOString(),
+      votes: {} // Boş - artık kullanılmıyor
     });
 
     // ========== User stats güncelle (Gmail kullanıcıları için) ==========
