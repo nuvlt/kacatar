@@ -121,7 +121,7 @@ export default async function handler(req, res) {
 
     console.log(`📅 Tarih Aralığı: ${dateFrom} → ${dateTo} (10 gün)`);
 
-    // ========== YENİ: Eski maçları sil (Predictions'a dokunma) ==========
+    // ========== YENİ: Eski maçları sil ama predictions'ı koru ==========
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
     const sixHoursAgoISO = sixHoursAgo.toISOString();
     
@@ -135,16 +135,22 @@ export default async function handler(req, res) {
     if (!oldMatches.empty) {
       const batch = db.batch();
       let deleteCount = 0;
+      const deletedMatchIds = [];
       
       oldMatches.forEach((doc) => {
         // Sadece matches collection'dan sil
         // Predictions collection'a dokunma
         batch.delete(doc.ref);
+        deletedMatchIds.push(doc.id);
         deleteCount++;
       });
       
       await batch.commit();
       console.log(`🧹 ${deleteCount} eski maç silindi (tahminler korundu)`);
+      console.log(`📋 Silinen match ID'ler:`, deletedMatchIds.slice(0, 5), '...');
+      
+      // ⚠️ ÖNEMLİ: Predictions'taki maç bilgilerini güncelleme yapma
+      // Çünkü predictions zaten homeTeam, awayTeam, homeLogo, awayLogo içeriyor
     } else {
       console.log(`ℹ️ Silinecek eski maç yok`);
     }
