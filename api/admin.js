@@ -326,7 +326,127 @@ async function handleMigrateVotes(req) {
   };
 }
 
-// ========== 6. UPDATE POPULAR PREDICTIONS ==========
+// ========== 7. FORCE UPDATE SCORES (Bekleyen Maçları Güncelle) ==========
+async function handleForceUpdateScores(req) {
+  console.log('🔄 Bekleyen maçların skorları kontrol ediliyor...');
+
+  // Tüm pending predictions'ları getir
+  const predictionsQuery = await db.collection("predictions")
+    .where("status", "==", "pending")
+    .get();
+
+  if (predictionsQuery.empty) {
+    return {
+      ok: true,
+      message: 'Bekleyen maç yok',
+      updated: 0
+    };
+  }
+
+  console.log(`📊 ${predictionsQuery.size} bekleyen tahmin bulundu`);
+
+  // Numeric match ID'leri topla
+  const numericMatchIds = [];
+  predictionsQuery.forEach(doc => {
+    const matchId = doc.data().matchId;
+    if (/^\d+$/.test(matchId) && !numericMatchIds.includes(matchId)) {
+      numericMatchIds.push(matchId);
+    }
+  });
+
+  if (numericMatchIds.length === 0) {
+    return {
+      ok: true,
+      message: 'Numeric match ID yok (Süper Lig maçları için API yok)',
+      updated: 0
+    };
+  }
+
+  console.log(`🎯 ${numericMatchIds.length} maç için skorlar isteniyor...`);
+
+  // API'den skorları al
+  const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
+  const liveScores = {};
+
+  for (const matchId of numericMatchIds) {
+    try {
+      const url = `https://api.football-data.org/v4/matches/${matchId}`;
+      const response = await fetch(url, {
+        headers: { 'X-Auth-Token': FOOTBALL_API_KEY }
+      });
+
+      if (response.ok) {
+        const m = await response.json();
+        
+        if (m.status === 'FINISHED' && m.score?.fullTime) {
+          liveScores[matchId] = {
+            homeScore: m.score.fullTime.home,
+            awayScore: m.score.fullTime.away,
+            status: 'FINISHED'
+          };
+          console.log(`✅ ${matchId}: ${m.score.fullTime.home}-${m.score.fullTime.away}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`⚠️ ${matchId}: ${e.message}`);
+    }
+  }
+
+  console.log(`📊 ${Object.keys(liveScores).length} maç skoru bulundu`);
+
+  if (Object.keys(liveScores).length === 0) {
+    return {
+      ok: true,
+      message: 'API\'den skor alınamadı (maçlar çok eski olabilir)',
+      updated: 0
+    };
+  }
+
+  // Predictions'ları güncelle
+  let updatedCount = 0;
+  const batch = db.batch();
+  let batchCount = 0;
+
+  predictionsQuery.forEach(predDoc => {
+    const pred = predDoc.data();
+    const score = liveScores[pred.matchId];
+
+    if (score) {
+      const actualScore = `${score.homeScore}-${score.awayScore}`;
+      const status = pred.prediction === actualScore ? 'correct' : 'wrong';
+      const points = status === 'correct' ? 10 : 0;
+
+      batch.update(predDoc.ref, {
+        status: status,
+        actualScore: actualScore,
+        points: points,
+        updatedAt: new Date().toISOString()
+      });
+
+      batchCount++;
+      updatedCount++;
+
+      if (batchCount >= 500) {
+        batch.commit();
+        batchCount = 0;
+      }
+    }
+  });
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return {
+    ok: true,
+    message: `✅ ${updatedCount} tahmin güncellendi`,
+    stats: {
+      totalPending: predictionsQuery.size,
+      scoresFound: Object.keys(liveScores).length,
+      updated: updatedCount
+    }
+  };
+}
 async function handleUpdatePopularPredictions(req) {
   console.log('🔄 Popüler tahminler güncelleniyor...');
 
@@ -424,7 +544,8 @@ export default async function handler(req, res) {
           'add-superlig-match',
           'sync-matches-logos',
           'migrate-votes',
-          'update-popular-predictions'
+          'update-popular-predictions',
+          'force-update-scores'
         ]
       });
     }
@@ -463,6 +584,10 @@ export default async function handler(req, res) {
       
       case 'update-popular-predictions':
         result = await handleUpdatePopularPredictions(req);
+        break;
+      
+      case 'force-update-scores':
+        result = await handleForceUpdateScores(req);
         break;
       
       default:
