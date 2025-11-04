@@ -521,7 +521,76 @@ async function handleUpdatePopularPredictions(req) {
   };
 }
 
-// ========== MAIN HANDLER ==========
+// ========== 8. MANUAL SUPERLIG SCORES (Tüm Kullanıcılar İçin) ==========
+async function handleManualSuperligScores(req) {
+  const { matchId, actualScore } = req.body;
+
+  if (!matchId || !actualScore) {
+    throw new Error('matchId ve actualScore gerekli');
+  }
+
+  // Skor formatı kontrolü
+  if (!/^\d+-\d+$/.test(actualScore)) {
+    throw new Error('Geçersiz skor formatı. Örnek: "2-1"');
+  }
+
+  console.log(`🎯 Manuel skor girişi: ${matchId} → ${actualScore}`);
+
+  // Bu maç için TÜM kullanıcıların tahminlerini bul
+  const predictionsQuery = await db.collection("predictions")
+    .where("matchId", "==", matchId)
+    .get();
+
+  if (predictionsQuery.empty) {
+    return {
+      ok: true,
+      message: 'Bu maç için tahmin bulunamadı',
+      updated: 0
+    };
+  }
+
+  console.log(`📊 ${predictionsQuery.size} tahmin bulundu`);
+
+  // Tüm tahminleri güncelle
+  let updatedCount = 0;
+  const batch = db.batch();
+  let batchCount = 0;
+
+  predictionsQuery.forEach(predDoc => {
+    const pred = predDoc.data();
+    const status = pred.prediction === actualScore ? 'correct' : 'wrong';
+    const points = status === 'correct' ? 10 : 0;
+
+    batch.update(predDoc.ref, {
+      status: status,
+      actualScore: actualScore,
+      points: points,
+      updatedAt: new Date().toISOString()
+    });
+
+    batchCount++;
+    updatedCount++;
+
+    if (batchCount >= 500) {
+      batch.commit();
+      batchCount = 0;
+    }
+  });
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  console.log(`✅ ${updatedCount} tahmin güncellendi (tüm kullanıcılar)`);
+
+  return {
+    ok: true,
+    message: `✅ ${updatedCount} tahmin güncellendi`,
+    matchId: matchId,
+    actualScore: actualScore,
+    totalUpdated: updatedCount
+  };
+}
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
