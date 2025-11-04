@@ -83,6 +83,9 @@
           <button onclick="forceUpdateScores()" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition font-semibold">
             🔄 Skorları Güncelle
           </button>
+          <button onclick="openSuperligScoreModal()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold">
+            ⚽ Süper Lig Skor
+          </button>
           <button onclick="logout()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
             🚪 Çıkış
           </button>
@@ -415,42 +418,6 @@
         }
       } catch (error) {
         console.error('Add match error:', error);
-        alert('❌ Bağlantı hatası!');
-      }
-    };
-
-    // Force Update Scores (YENİ)
-    window.forceUpdateScores = async function() {
-      if (!confirm('🔄 Bekleyen maçların skorlarını API\'den çekmek istiyor musunuz?\n\nBu işlem 1-2 dakika sürebilir.')) {
-        return;
-      }
-
-      try {
-        const SECRET_KEY = prompt('🔑 Secret Key:');
-        if (!SECRET_KEY) return;
-
-        const statusDiv = document.createElement('div');
-        statusDiv.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
-        statusDiv.innerHTML = '⏳ Skorlar güncelleniyor...';
-        document.body.appendChild(statusDiv);
-
-        const response = await fetch('/api/admin?action=force-update-scores', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: SECRET_KEY })
-        });
-
-        const result = await response.json();
-
-        statusDiv.remove();
-
-        if (result.ok) {
-          alert(`✅ ${result.message}\n\nDetay:\n- Bekleyen: ${result.stats?.totalPending || 0}\n- Skor Bulundu: ${result.stats?.scoresFound || 0}\n- Güncellenen: ${result.stats?.updated || 0}`);
-        } else {
-          alert(`❌ Hata: ${result.error}`);
-        }
-      } catch (error) {
-        console.error('Force update error:', error);
         alert('❌ Bağlantı hatası!');
       }
     };
