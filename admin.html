@@ -232,6 +232,54 @@
     </div>
   </div>
 
+  <!-- Süper Lig Skor Girişi Modal -->
+  <div id="superligScoreModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+      <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+        ⚽ Süper Lig Maç Skoru Gir
+      </h3>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Match ID</label>
+          <input 
+            type="text" 
+            id="slScoreMatchId" 
+            placeholder="sl-besiktas-trabzonspor-2024-11-02"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+          >
+          <p class="text-xs text-gray-500 mt-1">💡 İpucu: Firestore'dan predictions collection'ından matchId'yi kopyala</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Maç Skoru</label>
+          <input 
+            type="text" 
+            id="slScoreActualScore" 
+            placeholder="2-1"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-center text-2xl font-bold"
+          >
+          <p class="text-xs text-gray-500 mt-1">Format: "2-1" (Ev Sahibi - Deplasman)</p>
+        </div>
+
+        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p class="text-xs text-yellow-800">
+            ⚠️ <strong>DİKKAT:</strong> Bu işlem TÜM kullanıcıların bu maç için yaptığı tahminleri güncelleyecek!
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeSuperligScoreModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+          İptal
+        </button>
+        <button onclick="submitSuperligScore()" class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">
+          💾 Kaydet
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Global fonksiyonlar (module scope dışında)
     window.openSuperligModal = function() {
@@ -244,6 +292,69 @@
       document.getElementById('slAwayTeam').value = '';
       document.getElementById('slDate').value = '';
       document.getElementById('slTime').value = '';
+    };
+
+    window.openSuperligScoreModal = function() {
+      document.getElementById('superligScoreModal').classList.remove('hidden');
+    };
+
+    window.closeSuperligScoreModal = function() {
+      document.getElementById('superligScoreModal').classList.add('hidden');
+      document.getElementById('slScoreMatchId').value = '';
+      document.getElementById('slScoreActualScore').value = '';
+    };
+
+    window.submitSuperligScore = async function() {
+      const matchId = document.getElementById('slScoreMatchId').value.trim();
+      const actualScore = document.getElementById('slScoreActualScore').value.trim();
+
+      if (!matchId || !actualScore) {
+        alert('⚠️ Lütfen tüm alanları doldurun!');
+        return;
+      }
+
+      if (!/^\d+-\d+$/.test(actualScore)) {
+        alert('⚠️ Geçersiz skor formatı! Örnek: "2-1"');
+        return;
+      }
+
+      if (!confirm(`🎯 ${matchId}\n\nSkor: ${actualScore}\n\nTÜM kullanıcıların tahminleri güncellenecek. Emin misiniz?`)) {
+        return;
+      }
+
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key:');
+        if (!SECRET_KEY) return;
+
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'fixed top-4 right-4 bg-orange-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
+        statusDiv.innerHTML = '⏳ Skorlar güncelleniyor...';
+        document.body.appendChild(statusDiv);
+
+        const response = await fetch('/api/admin?action=manual-superlig-scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            key: SECRET_KEY, 
+            matchId: matchId,
+            actualScore: actualScore
+          })
+        });
+
+        const result = await response.json();
+
+        statusDiv.remove();
+
+        if (result.ok) {
+          alert(`✅ ${result.message}\n\n${result.totalUpdated} kullanıcının tahmini güncellendi!`);
+          window.closeSuperligScoreModal();
+        } else {
+          alert(`❌ Hata: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Submit score error:', error);
+        alert('❌ Bağlantı hatası!');
+      }
     };
 
     // Force Update Scores (GLOBAL SCOPE)
