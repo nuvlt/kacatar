@@ -1,678 +1,919 @@
-// api/admin.js
-// Tüm admin işlemlerini tek endpoint'te toplar
-// Action parameter ile farklı işlemler yapılır
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔐 Admin Panel - Logo Yönetimi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .logo-missing { border: 3px solid #ef4444; }
+    .logo-ok { border: 3px solid #10b981; }
+  </style>
+</head>
+<body class="bg-gray-50">
 
-import admin from "firebase-admin";
-
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-    });
-  } catch (e) {
-    console.error("Firebase init error:", e);
-  }
-}
-
-const db = admin.firestore();
-
-// ========== ADMIN AUTH CHECK ==========
-async function checkAuth(req) {
-  const { key, adminKey, username, password } = req.body || req.query;
-  
-  // Backend key kontrolü
-  if (key && key === process.env.SECRET_KEY) return true;
-  if (adminKey && adminKey === process.env.SECRET_KEY) return true;
-  
-  // Admin panel login kontrolü
-  if (username && password) {
-    const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'yonetici';
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'logo123';
-    return username === ADMIN_USERNAME && password === ADMIN_PASSWORD;
-  }
-  
-  return false;
-}
-
-// ========== 1. CHECK AUTH (Admin Panel Login) ==========
-async function handleCheckAuth(req) {
-  const { username, password } = req.body;
-  
-  if (!username || !password) {
-    return { ok: false, message: 'Kullanıcı adı ve şifre gerekli' };
-  }
-
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'logo123';
-  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'yonetici';
-
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    return { ok: true, message: 'Giriş başarılı' };
-  }
-  
-  return { ok: false, message: 'Kullanıcı adı veya şifre hatalı' };
-}
-
-// ========== 2. UPDATE LOGO ==========
-async function handleUpdateLogo(req) {
-  const { teamName, logoUrl } = req.body;
-
-  if (!teamName || !logoUrl) {
-    throw new Error('teamName ve logoUrl gerekli');
-  }
-
-  if (!logoUrl.startsWith('http://') && !logoUrl.startsWith('https://')) {
-    throw new Error('Geçersiz URL formatı');
-  }
-
-  console.log(`🎨 Logo güncelleniyor: ${teamName}`);
-
-  // Teams collection'a kaydet
-  const teamDocId = teamName.toLowerCase().replace(/\s+/g, '-');
-  await db.collection("teams").doc(teamDocId).set({
-    name: teamName,
-    nameLower: teamName.toLowerCase().trim(),
-    logo: logoUrl,
-    lastUpdated: new Date().toISOString(),
-  }, { merge: true });
-
-  // Bu takımın tüm maçlarını güncelle
-  const matchesSnapshot = await db.collection("matches").get();
-  const batch = db.batch();
-  let updatedCount = 0;
-
-  matchesSnapshot.forEach((doc) => {
-    const match = doc.data();
-    let needsUpdate = false;
-    const updates = {};
-
-    if ((match.home || match.homeTeam) === teamName) {
-      updates.homeLogo = logoUrl;
-      needsUpdate = true;
-    }
-
-    if ((match.away || match.awayTeam) === teamName) {
-      updates.awayLogo = logoUrl;
-      needsUpdate = true;
-    }
-
-    if (needsUpdate) {
-      batch.update(doc.ref, updates);
-      updatedCount++;
-    }
-  });
-
-  if (updatedCount > 0) {
-    await batch.commit();
-  }
-
-  return {
-    ok: true,
-    message: `✅ ${teamName} logosu güncellendi`,
-    updatedMatches: updatedCount,
-    logoUrl: logoUrl,
-  };
-}
-
-// ========== 3. ADD SÜPER LIG MATCH ==========
-async function handleAddSuperligMatch(req) {
-  const { home, away, date, time } = req.body;
-
-  if (!home || !away || !date) {
-    throw new Error('Eksik bilgi: home, away, date gerekli');
-  }
-
-  console.log(`🇹🇷 Süper Lig maçı ekleniyor: ${home} vs ${away}`);
-
-  // Logoları bul
-  let homeLogo = "";
-  let awayLogo = "";
-
-  try {
-    const homeSnap = await db.collection("teams")
-      .where("nameLower", "==", home.toLowerCase().trim())
-      .limit(1)
-      .get();
-    
-    if (!homeSnap.empty) {
-      homeLogo = homeSnap.docs[0].data().logo || "";
-    }
-
-    const awaySnap = await db.collection("teams")
-      .where("nameLower", "==", away.toLowerCase().trim())
-      .limit(1)
-      .get();
-    
-    if (!awaySnap.empty) {
-      awayLogo = awaySnap.docs[0].data().logo || "";
-    }
-  } catch (e) {
-    console.warn('Logo fetch error:', e.message);
-  }
-
-  const fullDateTime = time ? `${date} ${time}` : date;
-  const docId = `sl-${home}-${away}-${date}`.replace(/\s+/g, "_").replace(/:/g, "-");
-  
-  const matchData = {
-    competition: "super-lig",
-    league: "Süper Lig",
-    home: home,
-    away: away,
-    homeTeam: home,
-    awayTeam: away,
-    homeLogo: homeLogo,
-    awayLogo: awayLogo,
-    date: fullDateTime,
-    time: fullDateTime,
-    votes: {},
-    popularPrediction: null,
-    voteCount: 0,
-    syncedAt: new Date().toISOString(),
-  };
-
-  await db.collection("matches").doc(docId).set(matchData);
-
-  return {
-    ok: true,
-    message: `✅ ${home} vs ${away} maçı eklendi`,
-    matchId: docId,
-    logos: {
-      home: !!homeLogo,
-      away: !!awayLogo,
-    },
-  };
-}
-
-// ========== 4. SYNC MATCHES LOGOS ==========
-async function handleSyncMatchesLogos(req) {
-  console.log("🔄 Matches logoları güncelleniyor...");
-
-  // Teams map
-  const teamsSnapshot = await db.collection("teams").get();
-  const teamsMap = new Map();
-  
-  teamsSnapshot.forEach((doc) => {
-    const data = doc.data();
-    if (data.name) {
-      const nameLower = data.name.toLowerCase().trim();
-      teamsMap.set(nameLower, data.logo || null);
-    }
-    if (data.nameLower) {
-      teamsMap.set(data.nameLower, data.logo || null);
-    }
-  });
-
-  // Tüm maçları güncelle
-  const matchesSnapshot = await db.collection("matches").get();
-  let updated = 0;
-  let notFound = [];
-  
-  for (const doc of matchesSnapshot.docs) {
-    const data = doc.data();
-    const home = data.home || data.homeTeam;
-    const away = data.away || data.awayTeam;
-    
-    if (!home || !away) continue;
-    
-    const homeLogo = teamsMap.get(home.toLowerCase().trim());
-    const awayLogo = teamsMap.get(away.toLowerCase().trim());
-    
-    if (!homeLogo) notFound.push(home);
-    if (!awayLogo) notFound.push(away);
-    
-    await doc.ref.update({
-      homeLogo: homeLogo || "",
-      awayLogo: awayLogo || "",
-    });
-    
-    updated++;
-  }
-
-  const uniqueNotFound = [...new Set(notFound)];
-
-  return {
-    ok: true,
-    message: `✅ ${updated} maç güncellendi`,
-    stats: {
-      totalMatches: matchesSnapshot.size,
-      updatedMatches: updated,
-      teamsInMap: teamsMap.size,
-      missingLogos: uniqueNotFound.length,
-    },
-    missingTeams: uniqueNotFound.length > 0 ? uniqueNotFound : undefined,
-  };
-}
-
-// ========== 5. MIGRATE VOTES (TEK SEFERLIK) ==========
-async function handleMigrateVotes(req) {
-  console.log('🚀 Migrasyon başlatılıyor...');
-
-  const matchesSnapshot = await db.collection("matches").get();
-  
-  let totalMigrated = 0;
-  let totalSkipped = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  for (const matchDoc of matchesSnapshot.docs) {
-    const match = matchDoc.data();
-    const matchId = matchDoc.id;
-    const votes = match.votes || {};
-
-    if (Object.keys(votes).length === 0) {
-      totalSkipped++;
-      continue;
-    }
-
-    console.log(`📊 ${matchId}: ${Object.keys(votes).length} oy bulundu`);
-
-    for (const [userId, prediction] of Object.entries(votes)) {
-      const predictionId = `${userId}_${matchId}`;
-      const predictionRef = db.collection("predictions").doc(predictionId);
-
-      // Önce var mı kontrol et
-      const existingPred = await predictionRef.get();
+  <!-- Login Screen -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">🔐</div>
+        <h1 class="text-3xl font-bold text-gray-800">Admin Panel</h1>
+        <p class="text-gray-500 mt-2">Logo Yönetim Sistemi</p>
+      </div>
       
-      if (existingPred.exists) {
-        console.log(`⏭️ Zaten var: ${predictionId}`);
-        totalSkipped++;
-        continue;
-      }
-
-      batch.set(predictionRef, {
-        userId: userId,
-        matchId: matchId,
-        prediction: prediction,
-        homeTeam: match.home || match.homeTeam,
-        awayTeam: match.away || match.awayTeam,
-        homeLogo: match.homeLogo || "",
-        awayLogo: match.awayLogo || "",
-        league: match.league || match.competition,
-        matchDate: match.date || match.time,
-        createdAt: match.lastVoteAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'pending',
-        points: 0,
-        migratedFrom: 'matches.votes'
-      });
-
-      batchCount++;
-      totalMigrated++;
-
-      // Her 500 işlemde bir commit
-      if (batchCount >= 500) {
-        await batch.commit();
-        console.log(`💾 ${batchCount} kayıt commit edildi`);
-        batchCount = 0;
-      }
-    }
-  }
-
-  // Kalan kayıtları commit et
-  if (batchCount > 0) {
-    await batch.commit();
-    console.log(`💾 Son ${batchCount} kayıt commit edildi`);
-  }
-
-  console.log(`✅ Migrasyon tamamlandı!`);
-
-  return {
-    ok: true,
-    message: 'Migrasyon başarılı',
-    stats: {
-      totalMigrated,
-      totalSkipped,
-      totalMatches: matchesSnapshot.size
-    }
-  };
-}
-
-// ========== 7. FORCE UPDATE SCORES (Bekleyen Maçları Güncelle) ==========
-async function handleForceUpdateScores(req) {
-  console.log('🔄 Bekleyen maçların skorları kontrol ediliyor...');
-
-  // Tüm pending predictions'ları getir
-  const predictionsQuery = await db.collection("predictions")
-    .where("status", "==", "pending")
-    .get();
-
-  if (predictionsQuery.empty) {
-    return {
-      ok: true,
-      message: 'Bekleyen maç yok',
-      updated: 0
-    };
-  }
-
-  console.log(`📊 ${predictionsQuery.size} bekleyen tahmin bulundu`);
-
-  // Numeric match ID'leri topla
-  const numericMatchIds = [];
-  predictionsQuery.forEach(doc => {
-    const matchId = doc.data().matchId;
-    if (/^\d+$/.test(matchId) && !numericMatchIds.includes(matchId)) {
-      numericMatchIds.push(matchId);
-    }
-  });
-
-  if (numericMatchIds.length === 0) {
-    return {
-      ok: true,
-      message: 'Numeric match ID yok (Süper Lig maçları için API yok)',
-      updated: 0
-    };
-  }
-
-  console.log(`🎯 ${numericMatchIds.length} maç için skorlar isteniyor...`);
-
-  // API'den skorları al
-  const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
-  const liveScores = {};
-
-  for (const matchId of numericMatchIds) {
-    try {
-      const url = `https://api.football-data.org/v4/matches/${matchId}`;
-      const response = await fetch(url, {
-        headers: { 'X-Auth-Token': FOOTBALL_API_KEY }
-      });
-
-      if (response.ok) {
-        const m = await response.json();
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Kullanıcı Adı</label>
+          <input 
+            type="text" 
+            id="loginUsername" 
+            placeholder="admin"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onkeypress="if(event.key==='Enter') document.getElementById('loginPassword').focus()"
+          >
+        </div>
         
-        if (m.status === 'FINISHED' && m.score?.fullTime) {
-          liveScores[matchId] = {
-            homeScore: m.score.fullTime.home,
-            awayScore: m.score.fullTime.away,
-            status: 'FINISHED'
-          };
-          console.log(`✅ ${matchId}: ${m.score.fullTime.home}-${m.score.fullTime.away}`);
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Şifre</label>
+          <input 
+            type="password" 
+            id="loginPassword" 
+            placeholder="••••••••"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onkeypress="if(event.key==='Enter') attemptLogin()"
+          >
+        </div>
+
+        <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+
+        <button 
+          onclick="attemptLogin()" 
+          class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105"
+        >
+          🚀 Giriş Yap
+        </button>
+      </div>
+
+      <div class="mt-6 text-center text-xs text-gray-400">
+        <p>🔒 Güvenli Giriş</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Panel (Hidden by default) -->
+  <div id="mainPanel" class="hidden">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold">🔐 Admin Panel</h1>
+          <p class="text-sm text-blue-100">Logo Yönetimi & Güncelleme</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right">
+            <div class="text-sm">Toplam Maç: <span id="totalMatches" class="font-bold">-</span></div>
+            <div class="text-sm">Eksik Logo: <span id="missingCount" class="font-bold text-red-300">-</span></div>
+          </div>
+          <button onclick="manualSync()" id="syncBtn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold">
+            🔄 Maçları Güncelle
+          </button>
+          <button onclick="openSuperligModal()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold">
+            🇹🇷 Süper Lig Ekle
+          </button>
+          <button onclick="forceUpdateScores()" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition font-semibold">
+            🔄 Skorları Güncelle
+          </button>
+          <button onclick="openSuperligScoreModal()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold">
+            ⚽ Süper Lig Skorlar
+          </button>
+          <button onclick="logout()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
+            🚪 Çıkış
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="bg-white rounded-lg shadow p-4 flex gap-4 items-center">
+        <div class="flex-1">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="🔍 Takım adı ara..." 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+        </div>
+        <div class="flex gap-2">
+          <button onclick="filterMatches('all')" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 ring-2 ring-blue-500 font-bold">
+            Tümü
+          </button>
+          <button onclick="filterMatches('missing')" class="filter-btn px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200">
+            Eksikler
+          </button>
+          <button onclick="filterMatches('complete')" class="filter-btn px-4 py-2 rounded-lg bg-green-100 text-green-700 hover:bg-green-200">
+            Tamamlar
+          </button>
+        </div>
+        <button onclick="loadMatches()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          🔄 Yenile
+        </button>
+      </div>
+    </div>
+
+    <!-- Matches Grid -->
+    <main class="max-w-7xl mx-auto px-6 pb-8">
+      <div id="matchesContainer" class="grid gap-4">
+        <div class="text-center text-gray-500 py-8">
+          <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div>
+          <p>Maçlar yükleniyor...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-xl font-bold mb-4">📝 Logo Güncelle</h3>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Takım Adı</label>
+          <input type="text" id="editTeamName" readonly class="w-full px-4 py-2 bg-gray-100 rounded-lg">
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Logo URL</label>
+          <input 
+            type="url" 
+            id="editLogoUrl" 
+            placeholder="https://example.com/logo.png" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">💡 İpucu: Wikipedia'dan logo URL'i alabilirsiniz</p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Önizleme</label>
+          <div class="flex justify-center p-4 bg-gray-50 rounded-lg">
+            <img id="previewImage" src="" alt="Preview" class="w-24 h-24 object-contain" style="display:none;">
+            <div id="previewPlaceholder" class="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
+              🖼️
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+            İptal
+          </button>
+          <button onclick="saveLogoUpdate()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+            💾 Kaydet
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Süper Lig Modal -->
+  <div id="superligModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+      <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+        🇹🇷 Süper Lig Maçı Ekle
+      </h3>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Ev Sahibi Takım</label>
+          <input 
+            type="text" 
+            id="slHomeTeam" 
+            placeholder="Galatasaray"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Deplasman Takımı</label>
+          <input 
+            type="text" 
+            id="slAwayTeam" 
+            placeholder="Fenerbahçe"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Tarih</label>
+          <input 
+            type="date" 
+            id="slDate" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Saat (Opsiyonel)</label>
+          <input 
+            type="time" 
+            id="slTime" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeSuperligModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+          İptal
+        </button>
+        <button onclick="addSuperligMatch()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          ➕ Ekle
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Süper Lig Skor Girişi Modal -->
+  <div id="superligScoreModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 my-8">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-bold flex items-center gap-2">
+          ⚽ Süper Lig Maç Skorları
+        </h3>
+        <button onclick="closeSuperligScoreModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">
+          ×
+        </button>
+      </div>
+      
+      <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p class="text-sm text-blue-800">
+          ℹ️ Sadece <strong>bekleyen</strong> Süper Lig maçları gösteriliyor. Skor girdikten sonra otomatik olarak TÜM kullanıcıların tahminleri güncellenecek.
+        </p>
+      </div>
+
+      <div id="superligMatchesList" class="space-y-4">
+        <div class="text-center py-8">
+          <div class="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div>
+          <p class="text-gray-500">Maçlar yükleniyor...</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 mt-6 pt-6 border-t">
+        <button onclick="closeSuperligScoreModal()" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold">
+          Kapat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global fonksiyonlar (module scope dışında)
+    window.openSuperligModal = function() {
+      document.getElementById('superligModal').classList.remove('hidden');
+    };
+
+    window.closeSuperligModal = function() {
+      document.getElementById('superligModal').classList.add('hidden');
+      document.getElementById('slHomeTeam').value = '';
+      document.getElementById('slAwayTeam').value = '';
+      document.getElementById('slDate').value = '';
+      document.getElementById('slTime').value = '';
+    };
+
+    window.openSuperligScoreModal = async function() {
+      const modal = document.getElementById('superligScoreModal');
+      modal.classList.remove('hidden');
+      
+      // Biraz bekle ki modal açılsın, sonra module scope fonksiyonunu çağır
+      setTimeout(async () => {
+        if (typeof window.loadPendingSuperligMatches === 'function') {
+          await window.loadPendingSuperligMatches();
+        } else {
+          // Eğer fonksiyon henüz yüklenmediyse, 1 saniye daha bekle
+          setTimeout(async () => {
+            if (typeof window.loadPendingSuperligMatches === 'function') {
+              await window.loadPendingSuperligMatches();
+            } else {
+              document.getElementById('superligMatchesList').innerHTML = 
+                '<div class="text-center py-8 text-red-500"><p class="text-xl">⚠️ Fonksiyon henüz yüklenmedi!</p><p class="text-sm mt-2">Sayfayı yenileyin (Ctrl+Shift+R)</p></div>';
+            }
+          }, 1000);
         }
-      }
-    } catch (e) {
-      console.warn(`⚠️ ${matchId}: ${e.message}`);
-    }
-  }
-
-  console.log(`📊 ${Object.keys(liveScores).length} maç skoru bulundu`);
-
-  if (Object.keys(liveScores).length === 0) {
-    return {
-      ok: true,
-      message: 'API\'den skor alınamadı (maçlar çok eski olabilir)',
-      updated: 0
+      }, 100);
     };
-  }
 
-  // Predictions'ları güncelle
-  let updatedCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  predictionsQuery.forEach(predDoc => {
-    const pred = predDoc.data();
-    const score = liveScores[pred.matchId];
-
-    if (score) {
-      const actualScore = `${score.homeScore}-${score.awayScore}`;
-      const status = pred.prediction === actualScore ? 'correct' : 'wrong';
-      const points = status === 'correct' ? 10 : 0;
-
-      batch.update(predDoc.ref, {
-        status: status,
-        actualScore: actualScore,
-        points: points,
-        updatedAt: new Date().toISOString()
-      });
-
-      batchCount++;
-      updatedCount++;
-
-      if (batchCount >= 500) {
-        batch.commit();
-        batchCount = 0;
-      }
-    }
-  });
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} tahmin güncellendi`,
-    stats: {
-      totalPending: predictionsQuery.size,
-      scoresFound: Object.keys(liveScores).length,
-      updated: updatedCount
-    }
-  };
-}
-async function handleUpdatePopularPredictions(req) {
-  console.log('🔄 Popüler tahminler güncelleniyor...');
-
-  const matchesSnapshot = await db.collection("matches").get();
-  
-  let updatedCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  for (const matchDoc of matchesSnapshot.docs) {
-    const matchId = matchDoc.id;
-
-    // Bu maç için tüm tahminleri getir
-    const predictionsQuery = await db.collection("predictions")
-      .where("matchId", "==", matchId)
-      .get();
-
-    if (predictionsQuery.empty) {
-      batch.update(matchDoc.ref, {
-        popularPrediction: null,
-        voteCount: 0,
-        votes: {}
-      });
-      batchCount++;
-      continue;
-    }
-
-    // Tahminleri say
-    const counts = {};
-    predictionsQuery.forEach(predDoc => {
-      const pred = predDoc.data().prediction;
-      counts[pred] = (counts[pred] || 0) + 1;
-    });
-
-    // En popüleri bul
-    let popular = null;
-    let maxCount = 0;
-    for (let [score, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        popular = score;
-        maxCount = count;
-      }
-    }
-
-    batch.update(matchDoc.ref, {
-      popularPrediction: popular,
-      voteCount: maxCount,
-      votes: {}
-    });
-
-    batchCount++;
-    updatedCount++;
-
-    if (batchCount >= 500) {
-      await batch.commit();
-      console.log(`💾 ${batchCount} maç commit edildi`);
-      batchCount = 0;
-    }
-  }
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} maç güncellendi`,
-    stats: {
-      totalMatches: matchesSnapshot.size,
-      updated: updatedCount
-    }
-  };
-}
-
-// ========== 8. MANUAL SUPERLIG SCORES (Tüm Kullanıcılar İçin) ==========
-async function handleManualSuperligScores(req) {
-  const { matchId, actualScore } = req.body;
-
-  if (!matchId || !actualScore) {
-    throw new Error('matchId ve actualScore gerekli');
-  }
-
-  // Skor formatı kontrolü
-  if (!/^\d+-\d+$/.test(actualScore)) {
-    throw new Error('Geçersiz skor formatı. Örnek: "2-1"');
-  }
-
-  console.log(`🎯 Manuel skor girişi: ${matchId} → ${actualScore}`);
-
-  // Bu maç için TÜM kullanıcıların tahminlerini bul
-  const predictionsQuery = await db.collection("predictions")
-    .where("matchId", "==", matchId)
-    .get();
-
-  if (predictionsQuery.empty) {
-    return {
-      ok: true,
-      message: 'Bu maç için tahmin bulunamadı',
-      updated: 0
+    window.closeSuperligScoreModal = function() {
+      document.getElementById('superligScoreModal').classList.add('hidden');
     };
-  }
 
-  console.log(`📊 ${predictionsQuery.size} tahmin bulundu`);
+    // ========== Bekleyen Süper Lig maçlarını yükle (Module scope içinde) ==========
+    async function loadPendingSuperligMatches() {
+      const container = document.getElementById('superligMatchesList');
+      container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div><p class="text-gray-500">Maçlar yükleniyor...</p></div>';
 
-  // Tüm tahminleri güncelle
-  let updatedCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
+      try {
+        // Firestore'dan bekleyen predictions'ları çek
+        const pendingQuery = await getDocs(collection(db, "predictions"));
 
-  predictionsQuery.forEach(predDoc => {
-    const pred = predDoc.data();
-    const status = pred.prediction === actualScore ? 'correct' : 'wrong';
-    const points = status === 'correct' ? 10 : 0;
+        const superligMatches = new Map();
 
-    batch.update(predDoc.ref, {
-      status: status,
-      actualScore: actualScore,
-      points: points,
-      updatedAt: new Date().toISOString()
-    });
-
-    batchCount++;
-    updatedCount++;
-
-    if (batchCount >= 500) {
-      batch.commit();
-      batchCount = 0;
-    }
-  });
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  console.log(`✅ ${updatedCount} tahmin güncellendi (tüm kullanıcılar)`);
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} tahmin güncellendi`,
-    matchId: matchId,
-    actualScore: actualScore,
-    totalUpdated: updatedCount
-  };
-}
-export default async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  try {
-    const action = req.query.action || req.body?.action;
-
-    if (!action) {
-      return res.status(400).json({ 
-        error: 'Action parameter gerekli',
-        availableActions: [
-          'check-auth',
-          'update-logo',
-          'add-superlig-match',
-          'sync-matches-logos',
-          'migrate-votes',
-          'update-popular-predictions',
-          'force-update-scores'
-        ]
-      });
-    }
-
-    // Auth kontrolü (check-auth hariç)
-    if (action !== 'check-auth') {
-      const isAuthorized = await checkAuth(req);
-      if (!isAuthorized) {
-        return res.status(403).json({ error: 'Unauthorized' });
-      }
-    }
-
-    // Action'a göre işlem yap
-    let result;
-    
-    switch (action) {
-      case 'check-auth':
-        result = await handleCheckAuth(req);
-        break;
-      
-      case 'update-logo':
-        result = await handleUpdateLogo(req);
-        break;
-      
-      case 'add-superlig-match':
-        result = await handleAddSuperligMatch(req);
-        break;
-      
-      case 'sync-matches-logos':
-        result = await handleSyncMatchesLogos(req);
-        break;
-      
-      case 'migrate-votes':
-        result = await handleMigrateVotes(req);
-        break;
-      
-      case 'update-popular-predictions':
-        result = await handleUpdatePopularPredictions(req);
-        break;
-      
-      case 'force-update-scores':
-        result = await handleForceUpdateScores(req);
-        break;
-      
-      default:
-        return res.status(400).json({ 
-          error: 'Geçersiz action',
-          received: action
+        pendingQuery.forEach(doc => {
+          const data = doc.data();
+          // Sadece pending ve Süper Lig maçları
+          if (data.status === 'pending' && data.matchId && data.matchId.startsWith('sl-')) {
+            if (!superligMatches.has(data.matchId)) {
+              superligMatches.set(data.matchId, {
+                matchId: data.matchId,
+                home: data.homeTeam,
+                away: data.awayTeam,
+                homeLogo: data.homeLogo,
+                awayLogo: data.awayLogo,
+                date: data.matchDate,
+                count: 0
+              });
+            }
+            superligMatches.get(data.matchId).count++;
+          }
         });
+
+        const matches = Array.from(superligMatches.values());
+
+        if (matches.length === 0) {
+          container.innerHTML = '<div class="text-center py-8"><div class="text-6xl mb-4">✅</div><p class="text-xl text-gray-700">Bekleyen Süper Lig maçı yok!</p><p class="text-sm text-gray-500 mt-2">Tüm maçlar skorlandı.</p></div>';
+          return;
+        }
+
+        // Tarihe göre sırala (en yakından)
+        matches.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        container.innerHTML = matches.map((match, index) => `
+          <div class="border border-gray-200 rounded-lg p-4 hover:border-orange-300 transition">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-4 flex-1">
+                <div class="text-center flex-1">
+                  ${match.homeLogo ? `<img src="${match.homeLogo}" class="w-12 h-12 mx-auto mb-2 object-contain" onerror="this.style.display='none'">` : ''}
+                  <p class="font-bold text-sm">${match.home}</p>
+                </div>
+                
+                <div class="text-center px-4">
+                  <p class="text-2xl font-bold text-gray-400">VS</p>
+                </div>
+                
+                <div class="text-center flex-1">
+                  ${match.awayLogo ? `<img src="${match.awayLogo}" class="w-12 h-12 mx-auto mb-2 object-contain" onerror="this.style.display='none'">` : ''}
+                  <p class="font-bold text-sm">${match.away}</p>
+                </div>
+              </div>
+
+              <div class="ml-4 text-right">
+                <p class="text-xs text-gray-500">${new Date(match.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                <p class="text-xs text-orange-600 font-semibold">${match.count} tahmin</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <div class="flex-1 flex items-center gap-2">
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="10" 
+                  placeholder="0"
+                  id="homeScore_${index}"
+                  class="w-16 h-12 text-center text-xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                >
+                <span class="text-2xl font-bold text-gray-400">-</span>
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="10" 
+                  placeholder="0"
+                  id="awayScore_${index}"
+                  class="w-16 h-12 text-center text-xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                >
+              </div>
+              
+              <button 
+                onclick="submitSingleMatchScore('${match.matchId}', ${index})"
+                class="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold transition transform hover:scale-105"
+              >
+                💾 Kaydet
+              </button>
+            </div>
+
+            <div class="mt-2 text-xs text-gray-400 font-mono">
+              ID: ${match.matchId}
+            </div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Load matches error:', error);
+        container.innerHTML = '<div class="text-center py-8 text-red-500"><div class="text-6xl mb-4">❌</div><p class="text-xl">Yükleme hatası!</p><p class="text-sm mt-2">' + error.message + '</p></div>';
+      }
     }
 
-    return res.status(200).json(result);
+    // Global'e export et
+    window.loadPendingSuperligMatches = loadPendingSuperligMatches;
 
-  } catch (error) {
-    console.error('Admin API error:', error);
-    return res.status(500).json({ 
-      ok: false,
-      error: error.message || 'Internal server error' 
+    // ========== Tek bir maçın skorunu kaydet ==========
+    async function submitSingleMatchScore(matchId, index) {
+      const homeScore = document.getElementById(`homeScore_${index}`).value;
+      const awayScore = document.getElementById(`awayScore_${index}`).value;
+
+      if (!homeScore || !awayScore) {
+        alert('⚠️ Lütfen her iki skoru da girin!');
+        return;
+      }
+
+      const actualScore = `${homeScore}-${awayScore}`;
+
+      if (!confirm(`🎯 Skor: ${actualScore}\n\nTÜM kullanıcıların tahminleri güncellenecek. Emin misiniz?`)) {
+        return;
+      }
+
+      try {
+        let SECRET_KEY = sessionStorage.getItem('adminKey');
+        
+        if (!SECRET_KEY) {
+          SECRET_KEY = prompt('🔑 Secret Key:');
+          if (!SECRET_KEY) return;
+          sessionStorage.setItem('adminKey', SECRET_KEY);
+        }
+
+        const button = event.target;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '⏳ Kaydediliyor...';
+        button.classList.add('opacity-50');
+
+        const response = await fetch('/api/admin?action=manual-superlig-scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            key: SECRET_KEY, 
+            matchId: matchId,
+            actualScore: actualScore
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+          button.textContent = '✅ Kaydedildi';
+          button.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+          button.classList.add('bg-green-500');
+          
+          setTimeout(async () => {
+            await loadPendingSuperligMatches();
+          }, 1500);
+        } else {
+          if (response.status === 403) {
+            sessionStorage.removeItem('adminKey');
+            alert('❌ Geçersiz secret key! Tekrar deneyin.');
+          } else {
+            alert(`❌ Hata: ${result.error}`);
+          }
+          button.disabled = false;
+          button.textContent = originalText;
+          button.classList.remove('opacity-50');
+        }
+      } catch (error) {
+        console.error('Submit score error:', error);
+        alert('❌ Bağlantı hatası: ' + error.message);
+        const button = event.target;
+        button.disabled = false;
+        button.textContent = '💾 Kaydet';
+        button.classList.remove('opacity-50');
+      }
+    }
+
+    // Global'e export et
+    window.submitSingleMatchScore = submitSingleMatchScore;
+
+    window.submitSuperligScore = async function() {
+      // Deprecated - artık kullanılmıyor
+      alert('Bu fonksiyon artık kullanılmıyor. Maçlar listeden skorlanıyor.');
+    };
+
+    // Force Update Scores (GLOBAL SCOPE)
+    window.forceUpdateScores = async function() {
+      if (!confirm('🔄 Bekleyen maçların skorlarını API\'den çekmek istiyor musunuz?\n\nBu işlem 1-2 dakika sürebilir.')) {
+        return;
+      }
+
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key:');
+        if (!SECRET_KEY) return;
+
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
+        statusDiv.innerHTML = '⏳ Skorlar güncelleniyor...';
+        document.body.appendChild(statusDiv);
+
+        const response = await fetch('/api/admin?action=force-update-scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: SECRET_KEY })
+        });
+
+        const result = await response.json();
+
+        statusDiv.remove();
+
+        if (result.ok) {
+          alert(`✅ ${result.message}\n\nDetay:\n- Bekleyen: ${result.stats?.totalPending || 0}\n- Skor Bulundu: ${result.stats?.scoresFound || 0}\n- Güncellenen: ${result.stats?.updated || 0}`);
+        } else {
+          alert(`❌ Hata: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Force update error:', error);
+        alert('❌ Bağlantı hatası!');
+      }
+    };
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",
+      authDomain: "kac-atar.firebaseapp.com",
+      projectId: "kac-atar",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allMatches = [];
+    let currentFilter = 'all';
+    let editingMatch = null;
+    let editingTeamType = null;
+
+    const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23fee2e2'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%23dc2626'%3E%3F%3C/text%3E%3C/svg%3E";
+
+    // ========== YENİ API ENDPOINT: /api/admin ==========
+    
+    // Login attempt
+    window.attemptLogin = async function() {
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errorDiv = document.getElementById('loginError');
+
+      try {
+        const response = await fetch('/api/admin?action=check-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+          sessionStorage.setItem('adminLoggedIn', 'true');
+          document.getElementById('loginScreen').classList.add('hidden');
+          document.getElementById('mainPanel').classList.remove('hidden');
+          loadMatches();
+        } else {
+          errorDiv.textContent = '❌ ' + (result.message || 'Giriş başarısız!');
+          errorDiv.classList.remove('hidden');
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginPassword').focus();
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        errorDiv.textContent = '❌ Bağlantı hatası!';
+        errorDiv.classList.remove('hidden');
+      }
+    };
+
+    // Logout
+    window.logout = function() {
+      if (confirm('🚪 Çıkış yapmak istediğinize emin misiniz?')) {
+        sessionStorage.removeItem('adminLoggedIn');
+        document.getElementById('mainPanel').classList.add('hidden');
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+      }
+    };
+
+    // Manual Sync
+    window.manualSync = async function() {
+      const btn = document.getElementById('syncBtn');
+      const originalText = btn.textContent;
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ Güncelleniyor...';
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+      
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key girin:');
+        
+        if (!SECRET_KEY) {
+          alert('❌ Secret key gerekli!');
+          return;
+        }
+        
+        const response = await fetch(`/api/sync-matches?key=${SECRET_KEY}`);
+        const result = await response.json();
+        
+        if (result.ok) {
+          alert(`✅ Başarılı!\n\n${result.message}\n\nToplam: ${result.stats.totalMatches} maç`);
+          await loadMatches();
+        } else {
+          alert('❌ Hata: ' + (result.error || 'Bilinmeyen hata'));
+        }
+      } catch (error) {
+        console.error('Sync error:', error);
+        alert('❌ Bağlantı hatası!');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    };
+
+    // Süper Lig - Add match function (YENİ API)
+    window.addSuperligMatch = async function() {
+      const home = document.getElementById('slHomeTeam').value.trim();
+      const away = document.getElementById('slAwayTeam').value.trim();
+      const date = document.getElementById('slDate').value;
+      const time = document.getElementById('slTime').value;
+
+      if (!home || !away || !date) {
+        alert('⚠️ Lütfen tüm zorunlu alanları doldurun!');
+        return;
+      }
+
+      try {
+        const SECRET_KEY = prompt('🔑 Secret Key:');
+        if (!SECRET_KEY) return;
+
+        const response = await fetch('/api/admin?action=add-superlig-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: SECRET_KEY, home, away, date, time })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+          alert(`✅ ${result.message}`);
+          window.closeSuperligModal();
+          await loadMatches();
+        } else {
+          alert(`❌ Hata: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Add match error:', error);
+        alert('❌ Bağlantı hatası!');
+      }
+    };
+
+    // Check if already logged in
+    if (sessionStorage.getItem('adminLoggedIn') === 'true') {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainPanel').classList.remove('hidden');
+    }
+
+    // Load matches
+    window.loadMatches = async function() {
+      const container = document.getElementById('matchesContainer');
+      container.innerHTML = '<div class="text-center text-gray-500 py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div><p>Yükleniyor...</p></div>';
+
+      try {
+        const querySnapshot = await getDocs(collection(db, "matches"));
+        allMatches = [];
+        
+        querySnapshot.forEach((docSnap) => {
+          const match = docSnap.data();
+          match._id = docSnap.id;
+          allMatches.push(match);
+        });
+
+        allMatches.sort((a, b) => {
+          const dateA = new Date(a.date || a.time || 0);
+          const dateB = new Date(b.date || b.time || 0);
+          return dateA - dateB;
+        });
+
+        updateStats();
+        renderMatches();
+      } catch (error) {
+        console.error("Matches load error:", error);
+        container.innerHTML = '<div class="text-center text-red-500 py-8">❌ Yükleme hatası!</div>';
+      }
+    };
+
+    function updateStats() {
+      const missingCount = allMatches.reduce((count, match) => {
+        const homeMissing = !match.homeLogo || match.homeLogo === "";
+        const awayMissing = !match.awayLogo || match.awayLogo === "";
+        return count + (homeMissing ? 1 : 0) + (awayMissing ? 1 : 0);
+      }, 0);
+
+      document.getElementById('totalMatches').textContent = allMatches.length;
+      document.getElementById('missingCount').textContent = missingCount;
+    }
+
+    function renderMatches() {
+      const container = document.getElementById('matchesContainer');
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+      let filtered = allMatches.filter(match => {
+        const homeMissing = !match.homeLogo || match.homeLogo === "";
+        const awayMissing = !match.awayLogo || match.awayLogo === "";
+        const hasMissing = homeMissing || awayMissing;
+
+        if (currentFilter === 'missing' && !hasMissing) return false;
+        if (currentFilter === 'complete' && hasMissing) return false;
+
+        if (searchTerm) {
+          const home = (match.home || "").toLowerCase();
+          const away = (match.away || "").toLowerCase();
+          return home.includes(searchTerm) || away.includes(searchTerm);
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-8">😊 Hiç maç bulunamadı</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(match => {
+        const home = match.home || "Bilinmiyor";
+        const away = match.away || "Bilinmiyor";
+        const homeLogo = match.homeLogo || "";
+        const awayLogo = match.awayLogo || "";
+        const date = match.date ? new Date(match.date).toLocaleDateString('tr-TR') : "Tarih yok";
+
+        const homeClass = homeLogo ? "logo-ok" : "logo-missing";
+        const awayClass = awayLogo ? "logo-ok" : "logo-missing";
+
+        return `
+          <div class="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs text-gray-500 font-semibold">${date}</span>
+              <span class="text-xs text-gray-400">${match.league || ""}</span>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-4 items-center">
+              <div class="text-center">
+                <div class="flex justify-center mb-2">
+                  <img 
+                    src="${homeLogo || PLACEHOLDER}" 
+                    alt="${home}" 
+                    class="w-16 h-16 object-contain rounded-lg ${homeClass} cursor-pointer hover:scale-110 transition"
+                    onclick="openEditModal('${match._id}', 'home')"
+                    onerror="this.src='${PLACEHOLDER}'"
+                  >
+                </div>
+                <p class="font-semibold text-sm">${home}</p>
+                ${!homeLogo ? '<p class="text-xs text-red-500 font-semibold">❌ Logo eksik</p>' : '<p class="text-xs text-green-500">✅</p>'}
+              </div>
+
+              <div class="text-center">
+                <span class="text-2xl font-bold text-gray-400">VS</span>
+              </div>
+
+              <div class="text-center">
+                <div class="flex justify-center mb-2">
+                  <img 
+                    src="${awayLogo || PLACEHOLDER}" 
+                    alt="${away}" 
+                    class="w-16 h-16 object-contain rounded-lg ${awayClass} cursor-pointer hover:scale-110 transition"
+                    onclick="openEditModal('${match._id}', 'away')"
+                    onerror="this.src='${PLACEHOLDER}'"
+                  >
+                </div>
+                <p class="font-semibold text-sm">${away}</p>
+                ${!awayLogo ? '<p class="text-xs text-red-500 font-semibold">❌ Logo eksik</p>' : '<p class="text-xs text-green-500">✅</p>'}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.filterMatches = function(filter) {
+      currentFilter = filter;
+      
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-blue-500', 'font-bold');
+      });
+      event.target.classList.add('ring-2', 'ring-blue-500', 'font-bold');
+      
+      renderMatches();
+    };
+
+    document.getElementById('searchInput').addEventListener('input', renderMatches);
+
+    window.openEditModal = function(matchId, teamType) {
+      const match = allMatches.find(m => m._id === matchId);
+      if (!match) return;
+
+      editingMatch = match;
+      editingTeamType = teamType;
+
+      const teamName = teamType === 'home' ? match.home : match.away;
+      const currentLogo = teamType === 'home' ? match.homeLogo : match.awayLogo;
+
+      document.getElementById('editTeamName').value = teamName;
+      document.getElementById('editLogoUrl').value = currentLogo || "";
+      
+      if (currentLogo) {
+        document.getElementById('previewImage').src = currentLogo;
+        document.getElementById('previewImage').style.display = 'block';
+        document.getElementById('previewPlaceholder').style.display = 'none';
+      } else {
+        document.getElementById('previewImage').style.display = 'none';
+        document.getElementById('previewPlaceholder').style.display = 'flex';
+      }
+
+      document.getElementById('editModal').classList.remove('hidden');
+    };
+
+    window.closeModal = function() {
+      document.getElementById('editModal').classList.add('hidden');
+      editingMatch = null;
+      editingTeamType = null;
+    };
+
+    document.getElementById('editLogoUrl').addEventListener('input', (e) => {
+      const url = e.target.value.trim();
+      const preview = document.getElementById('previewImage');
+      const placeholder = document.getElementById('previewPlaceholder');
+
+      if (url) {
+        preview.src = url;
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        preview.style.display = 'none';
+        placeholder.style.display = 'flex';
+      }
     });
-  }
-}
+
+    // ========== YENİ: Logo Update API ==========
+    window.saveLogoUpdate = async function() {
+      if (!editingMatch || !editingTeamType) return;
+
+      const newLogoUrl = document.getElementById('editLogoUrl').value.trim();
+      const teamName = editingTeamType === 'home' ? editingMatch.home : editingMatch.away;
+
+      if (!newLogoUrl) {
+        alert('⚠️ Lütfen bir logo URL\'i girin!');
+        return;
+      }
+
+      if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
+        alert('❌ Lütfen önce admin girişi yapın!');
+        return;
+      }
+
+      try {
+        let adminKey = sessionStorage.getItem('adminKey');
+        
+        if (!adminKey) {
+          adminKey = prompt('🔑 Admin Key:');
+          if (!adminKey) {
+            alert('❌ Admin key gerekli!');
+            return;
+          }
+          sessionStorage.setItem('adminKey', adminKey);
+        }
+
+        const response = await fetch('/api/admin?action=update-logo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            teamName: teamName,
+            logoUrl: newLogoUrl,
+            adminKey: adminKey
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.ok) {
+          alert(`✅ ${result.message}\n${result.updatedMatches} maç güncellendi.`);
+          closeModal();
+          await loadMatches();
+        } else {
+          if (response.status === 403) {
+            sessionStorage.removeItem('adminKey');
+            alert('❌ Geçersiz admin key! Tekrar deneyin.');
+          } else {
+            alert(`❌ Hata: ${result.error}`);
+          }
+        }
+      } catch (error) {
+        console.error("Save error:", error);
+        alert('❌ Kaydetme hatası: ' + error.message);
+      }
+    };
+  </script>
+</body>
+</html>
