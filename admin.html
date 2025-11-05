@@ -281,15 +281,15 @@
 
     window.openSuperligScoreModal = async function() {
       document.getElementById('superligScoreModal').classList.remove('hidden');
-      await loadPendingSuperligMatches();
+      await window.loadPendingSuperligMatches();
     };
 
     window.closeSuperligScoreModal = function() {
       document.getElementById('superligScoreModal').classList.add('hidden');
     };
 
-    // ========== GLOBAL: Bekleyen Süper Lig maçlarını yükle ==========
-    window.loadPendingSuperligMatches = async function() {
+    // ========== Bekleyen Süper Lig maçlarını yükle (Module scope içinde) ==========
+    async function loadPendingSuperligMatches() {
       const container = document.getElementById('superligMatchesList');
       container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div><p class="text-gray-500">Maçlar yükleniyor...</p></div>';
 
@@ -392,10 +392,13 @@
         console.error('Load matches error:', error);
         container.innerHTML = '<div class="text-center py-8 text-red-500"><div class="text-6xl mb-4">❌</div><p class="text-xl">Yükleme hatası!</p><p class="text-sm mt-2">' + error.message + '</p></div>';
       }
-    };
+    }
 
-    // ========== GLOBAL: Tek bir maçın skorunu kaydet ==========
-    window.submitSingleMatchScore = async function(matchId, index) {
+    // Global'e export et
+    window.loadPendingSuperligMatches = loadPendingSuperligMatches;
+
+    // ========== Tek bir maçın skorunu kaydet ==========
+    async function submitSingleMatchScore(matchId, index) {
       const homeScore = document.getElementById(`homeScore_${index}`).value;
       const awayScore = document.getElementById(`awayScore_${index}`).value;
 
@@ -443,7 +446,7 @@
           button.classList.add('bg-green-500');
           
           setTimeout(async () => {
-            await window.loadPendingSuperligMatches();
+            await loadPendingSuperligMatches();
           }, 1500);
         } else {
           if (response.status === 403) {
@@ -464,7 +467,10 @@
         button.textContent = '💾 Kaydet';
         button.classList.remove('opacity-50');
       }
-    };
+    }
+
+    // Global'e export et
+    window.submitSingleMatchScore = submitSingleMatchScore;
 
     window.submitSuperligScore = async function() {
       // Deprecated - artık kullanılmıyor
