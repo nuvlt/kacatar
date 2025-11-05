@@ -280,25 +280,8 @@
     };
 
     window.openSuperligScoreModal = async function() {
-      const modal = document.getElementById('superligScoreModal');
-      modal.classList.remove('hidden');
-      
-      // Biraz bekle ki modal açılsın, sonra module scope fonksiyonunu çağır
-      setTimeout(async () => {
-        if (typeof window.loadPendingSuperligMatches === 'function') {
-          await window.loadPendingSuperligMatches();
-        } else {
-          // Eğer fonksiyon henüz yüklenmediyse, 1 saniye daha bekle
-          setTimeout(async () => {
-            if (typeof window.loadPendingSuperligMatches === 'function') {
-              await window.loadPendingSuperligMatches();
-            } else {
-              document.getElementById('superligMatchesList').innerHTML = 
-                '<div class="text-center py-8 text-red-500"><p class="text-xl">⚠️ Fonksiyon henüz yüklenmedi!</p><p class="text-sm mt-2">Sayfayı yenileyin (Ctrl+Shift+R)</p></div>';
-            }
-          }, 1000);
-        }
-      }, 100);
+      document.getElementById('superligScoreModal').classList.remove('hidden');
+      await loadPendingSuperligMatches();
     };
 
     window.closeSuperligScoreModal = function() {
@@ -311,18 +294,37 @@
       container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div><p class="text-gray-500">Maçlar yükleniyor...</p></div>';
 
       try {
+        // Admin key al
+        let adminKey = sessionStorage.getItem('adminKey');
+        
+        if (!adminKey) {
+          adminKey = prompt('🔑 Admin Key:');
+          if (!adminKey) {
+            container.innerHTML = '<div class="text-center py-8 text-gray-500"><p>❌ Admin key gerekli</p></div>';
+            return;
+          }
+          sessionStorage.setItem('adminKey', adminKey);
+        }
+
         // API'den çek (Firestore import sorunu yok!)
         const response = await fetch('/api/admin?action=get-pending-superlig', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            key: sessionStorage.getItem('adminKey') || 'temp' 
+            key: adminKey
           })
         });
 
         const data = await response.json();
 
         if (!data.ok) {
+          // Eğer 403 ise key yanlış
+          if (response.status === 403) {
+            sessionStorage.removeItem('adminKey');
+            alert('❌ Geçersiz admin key! Tekrar deneyin.');
+            await loadPendingSuperligMatches(); // Tekrar dene
+            return;
+          }
           throw new Error(data.error || 'API hatası');
         }
 
