@@ -592,6 +592,60 @@ async function handleManualSuperligScores(req) {
   };
 }
 
+// ========== 9. GET PENDING SUPERLIG MATCHES (Admin Panel İçin) ==========
+async function handleGetPendingSuperligMatches(req) {
+  console.log('📋 Bekleyen Süper Lig maçları listeleniyor...');
+
+  try {
+    const predictionsQuery = await db.collection("predictions")
+      .where("status", "==", "pending")
+      .get();
+
+    const superligMatches = new Map();
+
+    predictionsQuery.forEach(doc => {
+      const data = doc.data();
+      
+      // Sadece Süper Lig maçları
+      if (data.matchId && data.matchId.startsWith('sl-')) {
+        if (!superligMatches.has(data.matchId)) {
+          superligMatches.set(data.matchId, {
+            matchId: data.matchId,
+            home: data.homeTeam || 'Bilinmiyor',
+            away: data.awayTeam || 'Bilinmiyor',
+            homeLogo: data.homeLogo || '',
+            awayLogo: data.awayLogo || '',
+            date: data.matchDate,
+            count: 0
+          });
+        }
+        superligMatches.get(data.matchId).count++;
+      }
+    });
+
+    const matches = Array.from(superligMatches.values());
+    
+    // Tarihe göre sırala
+    matches.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    console.log(`✅ ${matches.length} bekleyen Süper Lig maçı bulundu`);
+
+    return {
+      ok: true,
+      matches: matches,
+      count: matches.length
+    };
+
+  } catch (error) {
+    console.error('Get pending matches error:', error);
+    return {
+      ok: false,
+      error: error.message,
+      matches: []
+    };
+  }
+}
+
 // ========== MAIN HANDLER ==========
 export default async function handler(req, res) {
   // CORS
