@@ -280,53 +280,58 @@
     };
 
     window.openSuperligScoreModal = async function() {
-      document.getElementById('superligScoreModal').classList.remove('hidden');
-      await window.loadPendingSuperligMatches();
+      const modal = document.getElementById('superligScoreModal');
+      modal.classList.remove('hidden');
+      
+      // Biraz bekle ki modal açılsın, sonra module scope fonksiyonunu çağır
+      setTimeout(async () => {
+        if (typeof window.loadPendingSuperligMatches === 'function') {
+          await window.loadPendingSuperligMatches();
+        } else {
+          // Eğer fonksiyon henüz yüklenmediyse, 1 saniye daha bekle
+          setTimeout(async () => {
+            if (typeof window.loadPendingSuperligMatches === 'function') {
+              await window.loadPendingSuperligMatches();
+            } else {
+              document.getElementById('superligMatchesList').innerHTML = 
+                '<div class="text-center py-8 text-red-500"><p class="text-xl">⚠️ Fonksiyon henüz yüklenmedi!</p><p class="text-sm mt-2">Sayfayı yenileyin (Ctrl+Shift+R)</p></div>';
+            }
+          }, 1000);
+        }
+      }, 100);
     };
 
     window.closeSuperligScoreModal = function() {
       document.getElementById('superligScoreModal').classList.add('hidden');
     };
 
-    // ========== Bekleyen Süper Lig maçlarını yükle (Module scope içinde) ==========
+    // ========== Bekleyen Süper Lig maçlarını yükle (API'den) ==========
     async function loadPendingSuperligMatches() {
       const container = document.getElementById('superligMatchesList');
       container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div><p class="text-gray-500">Maçlar yükleniyor...</p></div>';
 
       try {
-        // Firestore'dan bekleyen predictions'ları çek
-        const pendingQuery = await getDocs(collection(db, "predictions"));
-
-        const superligMatches = new Map();
-
-        pendingQuery.forEach(doc => {
-          const data = doc.data();
-          // Sadece pending ve Süper Lig maçları
-          if (data.status === 'pending' && data.matchId && data.matchId.startsWith('sl-')) {
-            if (!superligMatches.has(data.matchId)) {
-              superligMatches.set(data.matchId, {
-                matchId: data.matchId,
-                home: data.homeTeam,
-                away: data.awayTeam,
-                homeLogo: data.homeLogo,
-                awayLogo: data.awayLogo,
-                date: data.matchDate,
-                count: 0
-              });
-            }
-            superligMatches.get(data.matchId).count++;
-          }
+        // API'den çek (Firestore import sorunu yok!)
+        const response = await fetch('/api/admin?action=get-pending-superlig', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            key: sessionStorage.getItem('adminKey') || 'temp' 
+          })
         });
 
-        const matches = Array.from(superligMatches.values());
+        const data = await response.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || 'API hatası');
+        }
+
+        const matches = data.matches || [];
 
         if (matches.length === 0) {
           container.innerHTML = '<div class="text-center py-8"><div class="text-6xl mb-4">✅</div><p class="text-xl text-gray-700">Bekleyen Süper Lig maçı yok!</p><p class="text-sm text-gray-500 mt-2">Tüm maçlar skorlandı.</p></div>';
           return;
         }
-
-        // Tarihe göre sırala (en yakından)
-        matches.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         container.innerHTML = matches.map((match, index) => `
           <div class="border border-gray-200 rounded-lg p-4 hover:border-orange-300 transition">
