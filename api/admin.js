@@ -326,6 +326,81 @@ async function handleMigrateVotes(req) {
   };
 }
 
+// ========== 6. UPDATE POPULAR PREDICTIONS ==========
+async function handleUpdatePopularPredictions(req) {
+  console.log('🔄 Popüler tahminler güncelleniyor...');
+
+  const matchesSnapshot = await db.collection("matches").get();
+  
+  let updatedCount = 0;
+  const batch = db.batch();
+  let batchCount = 0;
+
+  for (const matchDoc of matchesSnapshot.docs) {
+    const matchId = matchDoc.id;
+
+    // Bu maç için tüm tahminleri getir
+    const predictionsQuery = await db.collection("predictions")
+      .where("matchId", "==", matchId)
+      .get();
+
+    if (predictionsQuery.empty) {
+      batch.update(matchDoc.ref, {
+        popularPrediction: null,
+        voteCount: 0,
+        votes: {}
+      });
+      batchCount++;
+      continue;
+    }
+
+    // Tahminleri say
+    const counts = {};
+    predictionsQuery.forEach(predDoc => {
+      const pred = predDoc.data().prediction;
+      counts[pred] = (counts[pred] || 0) + 1;
+    });
+
+    // En popüleri bul
+    let popular = null;
+    let maxCount = 0;
+    for (let [score, count] of Object.entries(counts)) {
+      if (count > maxCount) {
+        popular = score;
+        maxCount = count;
+      }
+    }
+
+    batch.update(matchDoc.ref, {
+      popularPrediction: popular,
+      voteCount: maxCount,
+      votes: {}
+    });
+
+    batchCount++;
+    updatedCount++;
+
+    if (batchCount >= 500) {
+      await batch.commit();
+      console.log(`💾 ${batchCount} maç commit edildi`);
+      batchCount = 0;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return {
+    ok: true,
+    message: `✅ ${updatedCount} maç güncellendi`,
+    stats: {
+      totalMatches: matchesSnapshot.size,
+      updated: updatedCount
+    }
+  };
+}
+
 // ========== 7. FORCE UPDATE SCORES (Bekleyen Maçları Güncelle) ==========
 async function handleForceUpdateScores(req) {
   console.log('🔄 Bekleyen maçların skorları kontrol ediliyor...');
@@ -443,79 +518,6 @@ async function handleForceUpdateScores(req) {
     stats: {
       totalPending: predictionsQuery.size,
       scoresFound: Object.keys(liveScores).length,
-      updated: updatedCount
-    }
-  };
-}
-async function handleUpdatePopularPredictions(req) {
-  console.log('🔄 Popüler tahminler güncelleniyor...');
-
-  const matchesSnapshot = await db.collection("matches").get();
-  
-  let updatedCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  for (const matchDoc of matchesSnapshot.docs) {
-    const matchId = matchDoc.id;
-
-    // Bu maç için tüm tahminleri getir
-    const predictionsQuery = await db.collection("predictions")
-      .where("matchId", "==", matchId)
-      .get();
-
-    if (predictionsQuery.empty) {
-      batch.update(matchDoc.ref, {
-        popularPrediction: null,
-        voteCount: 0,
-        votes: {}
-      });
-      batchCount++;
-      continue;
-    }
-
-    // Tahminleri say
-    const counts = {};
-    predictionsQuery.forEach(predDoc => {
-      const pred = predDoc.data().prediction;
-      counts[pred] = (counts[pred] || 0) + 1;
-    });
-
-    // En popüleri bul
-    let popular = null;
-    let maxCount = 0;
-    for (let [score, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        popular = score;
-        maxCount = count;
-      }
-    }
-
-    batch.update(matchDoc.ref, {
-      popularPrediction: popular,
-      voteCount: maxCount,
-      votes: {}
-    });
-
-    batchCount++;
-    updatedCount++;
-
-    if (batchCount >= 500) {
-      await batch.commit();
-      console.log(`💾 ${batchCount} maç commit edildi`);
-      batchCount = 0;
-    }
-  }
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} maç güncellendi`,
-    stats: {
-      totalMatches: matchesSnapshot.size,
       updated: updatedCount
     }
   };
@@ -671,15 +673,24 @@ export default async function handler(req, res) {
           'migrate-votes',
           'update-popular-predictions',
           'force-update-scores',
-          'manual-superlig-scores'
+          'manual-superlig-scores',
+          'get-pending-superlig'
         ]
       });
     }
 
     // Auth kontrolü (check-auth hariç)
-    if (action !== 'check-auth') {
+    if (action !== 'check-auth' && action !== 'get-pending-superlig') {
       const isAuthorized = await checkAuth(req);
       if (!isAuthorized) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+    }
+
+    // get-pending-superlig için özel auth kontrolü
+    if (action === 'get-pending-superlig') {
+      const { key } = req.body || req.query;
+      if (!key || key !== process.env.SECRET_KEY) {
         return res.status(403).json({ error: 'Unauthorized' });
       }
     }
@@ -718,6 +729,10 @@ export default async function handler(req, res) {
       
       case 'manual-superlig-scores':
         result = await handleManualSuperligScores(req);
+        break;
+      
+      case 'get-pending-superlig':
+        result = await handleGetPendingSuperligMatches(req);
         break;
       
       default:
