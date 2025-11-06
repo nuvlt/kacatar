@@ -479,6 +479,7 @@ async function handleForceUpdateScores(req) {
 
   // Predictions'ları güncelle
   let updatedCount = 0;
+  let correctCount = 0;
   const batch = db.batch();
   let batchCount = 0;
 
@@ -487,21 +488,58 @@ async function handleForceUpdateScores(req) {
     const score = liveScores[pred.matchId];
 
     if (score) {
+      // Zaten hesaplanmış mı kontrol et
+      if (pred.calculatedAt) {
+        console.log(`⏭️ Zaten hesaplanmış: ${predDoc.id}`);
+        return;
+      }
+      
       const actualScore = `${score.homeScore}-${score.awayScore}`;
       const status = pred.prediction === actualScore ? 'correct' : 'wrong';
       const points = status === 'correct' ? 10 : 0;
 
+      // Prediction güncelle
       batch.update(predDoc.ref, {
         status: status,
         actualScore: actualScore,
         points: points,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        calculatedAt: new Date().toISOString()
       });
+
+      // User stats güncelle (sadece Google kullanıcıları için)
+      const userId = pred.userId;
+      if (userId && !userId.startsWith('anon-')) {
+        const userRef = db.collection("users").doc(userId);
+        
+        batch.update(userRef, {
+          'stats.points': admin.firestore.FieldValue.increment(points),
+          'stats.totalPredictions': admin.firestore.FieldValue.increment(1),
+          'stats.correctPredictions': admin.firestore.FieldValue.increment(status === 'correct' ? 1 : 0),
+          'stats.lastUpdated': new Date().toISOString()
+        });
+
+        // Point History kaydet
+        const pointHistoryRef = db.collection("pointHistory").doc();
+        batch.set(pointHistoryRef, {
+          userId: userId,
+          matchId: pred.matchId,
+          prediction: pred.prediction,
+          actualScore: actualScore,
+          points: points,
+          timestamp: new Date().toISOString(),
+          homeTeam: pred.homeTeam,
+          awayTeam: pred.awayTeam,
+          league: pred.league
+        });
+
+        if (status === 'correct') correctCount++;
+      }
 
       batchCount++;
       updatedCount++;
 
-      if (batchCount >= 500) {
+      if (batchCount >= 450) {
         batch.commit();
         batchCount = 0;
       }
@@ -514,11 +552,12 @@ async function handleForceUpdateScores(req) {
 
   return {
     ok: true,
-    message: `✅ ${updatedCount} tahmin güncellendi`,
+    message: `✅ ${updatedCount} tahmin güncellendi (${correctCount} doğru)`,
     stats: {
       totalPending: predictionsQuery.size,
       scoresFound: Object.keys(liveScores).length,
-      updated: updatedCount
+      updated: updatedCount,
+      correctPredictions: correctCount
     }
   };
 }
@@ -553,27 +592,67 @@ async function handleManualSuperligScores(req) {
 
   console.log(`📊 ${predictionsQuery.size} tahmin bulundu`);
 
-  // Tüm tahminleri güncelle
+  // Tüm tahminleri güncelle ve user stats'ı güncelle
   let updatedCount = 0;
+  let correctCount = 0;
   const batch = db.batch();
   let batchCount = 0;
 
   predictionsQuery.forEach(predDoc => {
     const pred = predDoc.data();
+    
+    // Zaten hesaplanmış mı kontrol et (double counting önleme)
+    if (pred.calculatedAt) {
+      console.log(`⏭️ Zaten hesaplanmış: ${predDoc.id}`);
+      return;
+    }
+    
     const status = pred.prediction === actualScore ? 'correct' : 'wrong';
     const points = status === 'correct' ? 10 : 0;
 
+    // Prediction güncelle
     batch.update(predDoc.ref, {
       status: status,
       actualScore: actualScore,
       points: points,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      calculatedAt: new Date().toISOString()
     });
+
+    // User stats güncelle (sadece Google kullanıcıları için)
+    const userId = pred.userId;
+    if (userId && !userId.startsWith('anon-')) {
+      const userRef = db.collection("users").doc(userId);
+      
+      // Stats artır
+      batch.update(userRef, {
+        'stats.points': admin.firestore.FieldValue.increment(points),
+        'stats.totalPredictions': admin.firestore.FieldValue.increment(1),
+        'stats.correctPredictions': admin.firestore.FieldValue.increment(status === 'correct' ? 1 : 0),
+        'stats.lastUpdated': new Date().toISOString()
+      });
+
+      // Point History kaydet
+      const pointHistoryRef = db.collection("pointHistory").doc();
+      batch.set(pointHistoryRef, {
+        userId: userId,
+        matchId: matchId,
+        prediction: pred.prediction,
+        actualScore: actualScore,
+        points: points,
+        timestamp: new Date().toISOString(),
+        homeTeam: pred.homeTeam,
+        awayTeam: pred.awayTeam,
+        league: pred.league
+      });
+
+      if (status === 'correct') correctCount++;
+    }
 
     batchCount++;
     updatedCount++;
 
-    if (batchCount >= 500) {
+    if (batchCount >= 450) { // 500 yerine 450 (user updates dahil)
       batch.commit();
       batchCount = 0;
     }
@@ -583,14 +662,15 @@ async function handleManualSuperligScores(req) {
     await batch.commit();
   }
 
-  console.log(`✅ ${updatedCount} tahmin güncellendi (tüm kullanıcılar)`);
+  console.log(`✅ ${updatedCount} tahmin güncellendi (${correctCount} doğru)`);
 
   return {
     ok: true,
-    message: `✅ ${updatedCount} tahmin güncellendi`,
+    message: `✅ ${updatedCount} tahmin güncellendi (${correctCount} doğru)`,
     matchId: matchId,
     actualScore: actualScore,
-    totalUpdated: updatedCount
+    totalUpdated: updatedCount,
+    correctPredictions: correctCount
   };
 }
 
