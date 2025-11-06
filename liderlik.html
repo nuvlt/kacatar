@@ -53,19 +53,40 @@
 
   <!-- Filter -->
   <div class="max-w-5xl mx-auto px-4 py-6">
-    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 justify-center">
-      <button onclick="loadLeaderboard('daily', event)" class="period-btn px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold">
-        📅 Günlük
-      </button>
-      <button onclick="loadLeaderboard('weekly', event)" class="period-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
-        📊 Haftalık
-      </button>
-      <button onclick="loadLeaderboard('monthly', event)" class="period-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
-        📈 Aylık
-      </button>
-      <button onclick="loadLeaderboard('alltime', event)" class="period-btn px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold">
+    <div class="bg-white rounded-xl shadow-lg p-4 flex gap-4 justify-center flex-wrap">
+      <button onclick="loadLeaderboard('alltime', event)" class="period-btn px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold">
         🌟 Tüm Zamanlar
       </button>
+      <button onclick="refreshLeaderboard()" class="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg font-semibold hover:bg-blue-200 transition flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Yenile
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Summary -->
+  <div class="max-w-5xl mx-auto px-4 pb-6">
+    <div class="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg p-6 text-white">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div>
+          <p class="text-sm opacity-90">Toplam Kullanıcı</p>
+          <p class="text-3xl font-bold" id="totalUsers">-</p>
+        </div>
+        <div>
+          <p class="text-sm opacity-90">Toplam Tahmin</p>
+          <p class="text-3xl font-bold" id="totalPredictions">-</p>
+        </div>
+        <div>
+          <p class="text-sm opacity-90">Doğru Tahmin</p>
+          <p class="text-3xl font-bold" id="totalCorrect">-</p>
+        </div>
+        <div>
+          <p class="text-sm opacity-90">Başarı Oranı</p>
+          <p class="text-3xl font-bold" id="globalSuccessRate">-%</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -97,7 +118,7 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    let currentPeriod = 'daily';
+    let currentPeriod = 'alltime';
     let currentUser = null;
     let isGoogleUser = false;
 
@@ -142,7 +163,7 @@
     }
 
     // Global fonksiyon
-    window.loadLeaderboard = async function(period, event) {
+    window.loadLeaderboard = async function(period, event, forceRefresh = false) {
       currentPeriod = period;
       const container = document.getElementById('leaderboardContainer');
 
@@ -160,37 +181,59 @@
       container.innerHTML = '<div class="text-center py-16"><div class="animate-spin inline-block rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div><p class="text-gray-500">Yükleniyor...</p></div>';
 
       try {
-        console.log(`📊 Loading leaderboard: ${period}`);
+        console.log(`📊 Loading leaderboard: ${period} (forceRefresh: ${forceRefresh})`);
         
+        // ========== CACHE DEVRE DIŞI - HER ZAMAN FRESH DATA ==========
         const usersQuery = query(
           collection(db, "users"),
           orderBy("stats.points", "desc"),
-          limit(50)
+          limit(100) // Daha fazla kullanıcı çek
         );
 
         const snapshot = await getDocs(usersQuery);
         const users = [];
+        
+        let totalUsers = 0;
+        let totalPredictions = 0;
+        let totalCorrect = 0;
 
         snapshot.forEach(doc => {
           const data = doc.data();
           
+          // Sadece email ve displayName olanlar (Google login)
           if (data.email && data.displayName && data.stats) {
+            const stats = data.stats;
+            
+            // Stats güncelleme
+            totalUsers++;
+            totalPredictions += stats.totalPredictions || 0;
+            totalCorrect += stats.correctPredictions || 0;
+            
             users.push({
               uid: doc.id,
               displayName: data.displayName || 'Anonim',
               photoURL: data.photoURL,
               email: data.email,
-              points: data.stats.points || 0,
-              totalPredictions: data.stats.totalPredictions || 0,
-              correctPredictions: data.stats.correctPredictions || 0,
-              successRate: data.stats.totalPredictions > 0 
-                ? Math.round((data.stats.correctPredictions / data.stats.totalPredictions) * 100) 
-                : 0
+              points: stats.points || 0,
+              totalPredictions: stats.totalPredictions || 0,
+              correctPredictions: stats.correctPredictions || 0,
+              successRate: stats.totalPredictions > 0 
+                ? Math.round((stats.correctPredictions / stats.totalPredictions) * 100) 
+                : 0,
+              lastUpdated: stats.lastUpdated || null
             });
           }
         });
 
-        console.log(`✅ ${users.length} kullanıcı bulundu`);
+        // Stats güncelle
+        document.getElementById('totalUsers').textContent = totalUsers;
+        document.getElementById('totalPredictions').textContent = totalPredictions;
+        document.getElementById('totalCorrect').textContent = totalCorrect;
+        document.getElementById('globalSuccessRate').textContent = 
+          totalPredictions > 0 ? Math.round((totalCorrect / totalPredictions) * 100) + '%' : '0%';
+
+        console.log(`✅ ${users.length} kullanıcı bulundu (Toplam: ${totalUsers})`);
+        console.log(`📊 Stats: ${totalPredictions} tahmin, ${totalCorrect} doğru`);
 
         if (users.length === 0) {
           container.innerHTML = `
@@ -206,6 +249,9 @@
           return;
         }
 
+        // Puana göre sırala (zaten sorted ama emin olalım)
+        users.sort((a, b) => b.points - a.points);
+
         // Render
         container.innerHTML = `
           <div class="overflow-x-auto">
@@ -216,6 +262,7 @@
                   <th class="px-6 py-4 text-left">Kullanıcı</th>
                   <th class="px-6 py-4 text-center">Puan</th>
                   <th class="px-6 py-4 text-center">Tahmin</th>
+                  <th class="px-6 py-4 text-center">Doğru</th>
                   <th class="px-6 py-4 text-center">Başarı</th>
                 </tr>
               </thead>
@@ -231,7 +278,7 @@
 
                   // Highlight current user
                   const isCurrentUser = currentUser && user.uid === currentUser.uid;
-                  const rowClass = isCurrentUser ? 'bg-purple-50' : '';
+                  const rowClass = isCurrentUser ? 'bg-purple-50 border-l-4 border-purple-600' : '';
 
                   return `
                     <tr class="hover:bg-gray-50 transition ${rowClass}">
@@ -242,25 +289,40 @@
                                alt="${user.displayName}" 
                                class="w-10 h-10 rounded-full"
                                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=667eea&color=fff'">
-                          <span class="font-semibold ${isCurrentUser ? 'text-purple-700' : ''}">${user.displayName} ${isCurrentUser ? '(Sen)' : ''}</span>
+                          <div>
+                            <span class="font-semibold ${isCurrentUser ? 'text-purple-700' : ''}">${user.displayName}</span>
+                            ${isCurrentUser ? '<span class="ml-2 text-xs bg-purple-600 text-white px-2 py-1 rounded-full">Sen</span>' : ''}
+                            ${user.lastUpdated ? `<div class="text-xs text-gray-400">Son güncelleme: ${new Date(user.lastUpdated).toLocaleDateString('tr-TR')}</div>` : ''}
+                          </div>
                         </div>
                       </td>
                       <td class="px-6 py-4 text-center">
-                        <span class="inline-block px-4 py-2 bg-purple-100 text-purple-700 rounded-full font-bold">
+                        <span class="inline-block px-4 py-2 bg-purple-100 text-purple-700 rounded-full font-bold text-lg">
                           ${user.points}
                         </span>
                       </td>
-                      <td class="px-6 py-4 text-center text-gray-600">
+                      <td class="px-6 py-4 text-center text-gray-600 font-semibold">
                         ${user.totalPredictions}
                       </td>
+                      <td class="px-6 py-4 text-center text-green-600 font-bold">
+                        ${user.correctPredictions}
+                      </td>
                       <td class="px-6 py-4 text-center">
-                        <span class="text-green-600 font-semibold">${user.successRate}%</span>
+                        <span class="text-lg font-bold ${user.successRate >= 70 ? 'text-green-600' : user.successRate >= 40 ? 'text-yellow-600' : 'text-red-600'}">
+                          ${user.successRate}%
+                        </span>
                       </td>
                     </tr>
                   `;
                 }).join('')}
               </tbody>
             </table>
+          </div>
+
+          <div class="p-6 bg-gray-50 border-t">
+            <p class="text-xs text-gray-500 text-center">
+              💡 İpucu: Her doğru tahmin 10 puan kazandırır. Liderlikte kalmak için sürekli tahmin yap!
+            </p>
           </div>
         `;
 
@@ -271,7 +333,7 @@
             <div class="text-6xl mb-4">⚠️</div>
             <p class="text-xl text-red-600 font-bold mb-2">Yükleme Hatası</p>
             <p class="text-gray-500 mb-6">${error.message}</p>
-            <button onclick="location.reload()" class="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700">
+            <button onclick="loadLeaderboard('${currentPeriod}', null, true)" class="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700">
               🔄 Tekrar Dene
             </button>
           </div>
@@ -279,8 +341,13 @@
       }
     };
 
+    // Refresh function
+    window.refreshLeaderboard = function() {
+      loadLeaderboard(currentPeriod, null, true);
+    };
+
     // Initial load
-    loadLeaderboard('daily', null);
+    loadLeaderboard('alltime', null);
   </script>
 </body>
 </html>
