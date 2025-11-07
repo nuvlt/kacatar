@@ -86,11 +86,9 @@
           <button onclick="openSuperligScoreModal()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold">
             ⚽ Süper Lig Skorlar
           </button>
-          
-  <button onclick="recalculateAllStats()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold">
-    🔄 Stats'ları Yeniden Hesapla
-  </button>
-
+          <button onclick="recalculateAllStats()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold">
+            🔄 Stats'ları Yeniden Hesapla
+          </button>
           <button onclick="logout()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
             🚪 Çıkış
           </button>
@@ -484,11 +482,6 @@
     // Global'e export et
     window.submitSingleMatchScore = submitSingleMatchScore;
 
-    window.submitSuperligScore = async function() {
-      // Deprecated - artık kullanılmıyor
-      alert('Bu fonksiyon artık kullanılmıyor. Maçlar listeden skorlanıyor.');
-    };
-
     // Force Update Scores (GLOBAL SCOPE)
     window.forceUpdateScores = async function() {
       if (!confirm('🔄 Bekleyen maçların skorlarını API\'den çekmek istiyor musunuz?\n\nBu işlem 1-2 dakika sürebilir.')) {
@@ -515,12 +508,58 @@
         statusDiv.remove();
 
         if (result.ok) {
-          alert(`✅ ${result.message}\n\nDetay:\n- Bekleyen: ${result.stats?.totalPending || 0}\n- Skor Bulundu: ${result.stats?.scoresFound || 0}\n- Güncellenen: ${result.stats?.updated || 0}`);
+          alert(`✅ ${result.message}\n\nDetay:\n- Bekleyen: ${result.stats?.totalPending || 0}\n- Skor Bulundu: ${result.stats?.scoresFound || 0}\n- Güncellenen: ${result.stats?.updated || 0}\n- Doğru: ${result.stats?.correctPredictions || 0}`);
         } else {
           alert(`❌ Hata: ${result.error}`);
         }
       } catch (error) {
         console.error('Force update error:', error);
+        alert('❌ Bağlantı hatası!');
+      }
+    };
+
+    // ========== RECALCULATE ALL STATS ==========
+    window.recalculateAllStats = async function() {
+      if (!confirm('⚠️ TÜM kullanıcı stats\'ları sıfırlanacak ve geçmiş tahminlerden yeniden hesaplanacak.\n\nBu işlem 1-2 dakika sürebilir.\n\nDevam etmek istiyor musunuz?')) {
+        return;
+      }
+
+      try {
+        let SECRET_KEY = sessionStorage.getItem('adminKey');
+        
+        if (!SECRET_KEY) {
+          SECRET_KEY = prompt('🔑 Admin Key:');
+          if (!SECRET_KEY) return;
+          sessionStorage.setItem('adminKey', SECRET_KEY);
+        }
+
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
+        statusDiv.innerHTML = '⏳ Stats yeniden hesaplanıyor...';
+        document.body.appendChild(statusDiv);
+
+        const response = await fetch('/api/admin?action=recalculate-all-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: SECRET_KEY })
+        });
+
+        const result = await response.json();
+
+        statusDiv.remove();
+
+        if (result.ok) {
+          alert(`✅ ${result.message}\n\nDetay:\n- Toplam Kullanıcı: ${result.stats?.totalUsers || 0}\n- Güncellenen: ${result.stats?.updatedUsers || 0}\n- Atlanan: ${result.stats?.skippedUsers || 0}\n- Doğru Tahmin: ${result.stats?.correctPredictions || 0}\n- Yanlış Tahmin: ${result.stats?.wrongPredictions || 0}`);
+        } else {
+          if (response.status === 403) {
+            sessionStorage.removeItem('adminKey');
+            alert('❌ Geçersiz admin key! Tekrar deneyin.');
+          } else {
+            alert(`❌ Hata: ${result.error}`);
+          }
+        }
+      } catch (error) {
+        console.error('Recalculate stats error:', error);
         alert('❌ Bağlantı hatası!');
       }
     };
@@ -910,53 +949,5 @@
       }
     };
   </script>
-
-<script>
-  window.recalculateAllStats = async function() {
-    if (!confirm('⚠️ TÜM kullanıcı stats\'ları sıfırlanacak ve geçmiş tahminlerden yeniden hesaplanacak.\n\nBu işlem 1-2 dakika sürebilir.\n\nDevam etmek istiyor musunuz?')) {
-      return;
-    }
-
-    try {
-      const SECRET_KEY = sessionStorage.getItem('adminKey');
-      
-      if (!SECRET_KEY) {
-        const key = prompt('🔑 Admin Key:');
-        if (!key) return;
-        sessionStorage.setItem('adminKey', key);
-      }
-
-      const statusDiv = document.createElement('div');
-      statusDiv.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
-      statusDiv.innerHTML = '⏳ Stats yeniden hesaplanıyor...';
-      document.body.appendChild(statusDiv);
-
-      const response = await fetch('/api/admin?action=recalculate-all-stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: SECRET_KEY || sessionStorage.getItem('adminKey') })
-      });
-
-      const result = await response.json();
-
-      statusDiv.remove();
-
-      if (result.ok) {
-        alert(`✅ ${result.message}\n\nDetay:\n- Toplam Kullanıcı: ${result.stats?.totalUsers || 0}\n- Doğru Tahmin: ${result.stats?.correctPredictions || 0}\n- Yanlış Tahmin: ${result.stats?.wrongPredictions || 0}`);
-      } else {
-        if (response.status === 403) {
-          sessionStorage.removeItem('adminKey');
-          alert('❌ Geçersiz admin key! Tekrar deneyin.');
-        } else {
-          alert(`❌ Hata: ${result.error}`);
-        }
-      }
-    } catch (error) {
-      console.error('Recalculate stats error:', error);
-      alert('❌ Bağlantı hatası!');
-    }
-  };
-</script>
 </body>
 </html>
-
