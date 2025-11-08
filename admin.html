@@ -1,977 +1,156 @@
-// api/admin.js
-// Tüm admin işlemlerini tek endpoint'te toplar
-// Action parameter ile farklı işlemler yapılır
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔐 Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .logo-missing { border: 3px solid #ef4444; }
+    .logo-ok { border: 3px solid #10b981; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- Login Screen -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">🔐</div>
+        <h1 class="text-3xl font-bold text-gray-800">Admin Panel</h1>
+        <p class="text-gray-500 mt-2">Logo Yönetim Sistemi</p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Kullanıcı Adı</label>
+          <input type="text" id="loginUsername" placeholder="admin" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onkeypress="if(event.key==='Enter') document.getElementById('loginPassword').focus()">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Şifre</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onkeypress="if(event.key==='Enter') attemptLogin()">
+        </div>
+        <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+        <button onclick="attemptLogin()" class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">🚀 Giriş Yap</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Panel -->
+  <div id="mainPanel" class="hidden">
+    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex justify-between items-center mb-3">
+          <div><h1 class="text-2xl font-bold">🔐 Admin Panel</h1></div>
+          <div class="text-right text-sm">
+            <div>Toplam Maç: <span id="totalMatches" class="font-bold">-</span></div>
+            <div>Eksik Logo: <span id="missingCount" class="font-bold text-red-300">-</span></div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="manualSync()" class="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-semibold">🔄 Maçları Güncelle</button>
+          <button onclick="openSuperligModal()" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-semibold">🇹🇷 Süper Lig Ekle</button>
+          <button onclick="forceUpdateScores()" class="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm font-semibold">🔄 Skorları Güncelle</button>
+          <button onclick="openSuperligScoreModal()" class="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-semibold">⚽ Süper Lig Skorlar</button>
+          <button onclick="recalculateAllStats()" class="px-3 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-semibold">🔄 Stats Hesapla</button>
+          <button onclick="logout()" class="px-3 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 text-sm">🚪 Çıkış</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="bg-white rounded-lg shadow p-4 flex gap-4 items-center">
+        <input type="text" id="searchInput" placeholder="🔍 Takım adı ara..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg">
+        <div class="flex gap-2">
+          <button onclick="filterMatches('all')" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 ring-2 ring-blue-500 font-bold">Tümü</button>
+          <button onclick="filterMatches('missing')" class="filter-btn px-4 py-2 rounded-lg bg-red-100 text-red-700">Eksikler</button>
+          <button onclick="filterMatches('complete')" class="filter-btn px-4 py-2 rounded-lg bg-green-100 text-green-700">Tamamlar</button>
+        </div>
+        <button onclick="loadMatches()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold">🔄</button>
+      </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-6 pb-8">
+      <div id="matchesContainer" class="grid gap-4"><div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div></div></div>
+    </main>
+
+    <!-- Modals -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-xl font-bold mb-4">📝 Logo Güncelle</h3>
+        <div class="mb-4"><label class="block text-sm font-semibold mb-2">Takım Adı</label><input type="text" id="editTeamName" readonly class="w-full px-4 py-2 bg-gray-100 rounded-lg"></div>
+        <div class="mb-4"><label class="block text-sm font-semibold mb-2">Logo URL</label><input type="url" id="editLogoUrl" placeholder="https://example.com/logo.png" class="w-full px-4 py-2 border rounded-lg"></div>
+        <div class="mb-4"><label class="block text-sm font-semibold mb-2">Önizleme</label><div class="flex justify-center p-4 bg-gray-50 rounded-lg"><img id="previewImage" src="" class="w-24 h-24 object-contain" style="display:none;"><div id="previewPlaceholder" class="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center">🖼️</div></div></div>
+        <div class="flex gap-3"><button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg">İptal</button><button onclick="saveLogoUpdate()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold">💾 Kaydet</button></div>
+      </div>
+    </div>
+
+    <div id="superligModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-xl font-bold mb-4">🇹🇷 Süper Lig Maçı Ekle</h3>
+        <div class="space-y-4">
+          <div><label class="block text-sm font-semibold mb-2">Ev Sahibi</label><input type="text" id="slHomeTeam" class="w-full px-4 py-2 border rounded-lg"></div>
+          <div><label class="block text-sm font-semibold mb-2">Deplasman</label><input type="text" id="slAwayTeam" class="w-full px-4 py-2 border rounded-lg"></div>
+          <div><label class="block text-sm font-semibold mb-2">Tarih</label><input type="date" id="slDate" class="w-full px-4 py-2 border rounded-lg"></div>
+          <div><label class="block text-sm font-semibold mb-2">Saat</label><input type="time" id="slTime" class="w-full px-4 py-2 border rounded-lg"></div>
+        </div>
+        <div class="flex gap-3 mt-6"><button onclick="closeSuperligModal()" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg">İptal</button><button onclick="addSuperligMatch()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold">➕ Ekle</button></div>
+      </div>
+    </div>
+
+    <div id="superligScoreModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 my-8">
+        <div class="flex justify-between items-center mb-6"><h3 class="text-2xl font-bold">⚽ Süper Lig Skorlar</h3><button onclick="closeSuperligScoreModal()" class="text-gray-400 text-3xl">×</button></div>
+        <div id="superligMatchesList" class="space-y-4"></div>
+        <div class="flex justify-end mt-6 pt-6 border-t"><button onclick="closeSuperligScoreModal()" class="px-6 py-2 bg-gray-200 rounded-lg font-semibold">Kapat</button></div>
+      </div>
+    </div>
+  </div>
 
-import admin from "firebase-admin";
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script>
+    firebase.initializeApp({apiKey:"AIzaSyDeCQtEWfOyE1hnJHb_W2ktSTqkfUjPJNc",authDomain:"kac-atar.firebaseapp.com",projectId:"kac-atar"});
+    const db=firebase.firestore();let allMatches=[],currentFilter='all',editingMatch=null,editingTeamType=null;
+    const PLACEHOLDER="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect fill='%23fee2e2'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' font-size='32' fill='%23dc2626'%3E%3F%3C/text%3E%3C/svg%3E";
 
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-    });
-  } catch (e) {
-    console.error("Firebase init error:", e);
-  }
-}
+    window.attemptLogin=async()=>{const u=document.getElementById('loginUsername').value.trim(),p=document.getElementById('loginPassword').value,e=document.getElementById('loginError');try{const r=await fetch('/api/admin?action=check-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}),d=await r.json();if(d.ok){sessionStorage.setItem('adminLoggedIn','true');document.getElementById('loginScreen').classList.add('hidden');document.getElementById('mainPanel').classList.remove('hidden');loadMatches()}else{e.textContent='❌ '+(d.message||'Giriş başarısız');e.classList.remove('hidden');document.getElementById('loginPassword').value=''}}catch(err){e.textContent='❌ Bağlantı hatası';e.classList.remove('hidden')}};
 
-const db = admin.firestore();
+    window.logout=()=>{if(confirm('Çıkış yapmak istediğinize emin misiniz?')){sessionStorage.removeItem('adminLoggedIn');document.getElementById('mainPanel').classList.add('hidden');document.getElementById('loginScreen').classList.remove('hidden')}};
 
-// ========== ADMIN AUTH CHECK ==========
-async function checkAuth(req) {
-  const { key, adminKey, username, password } = req.body || req.query;
-  
-  // Backend key kontrolü
-  if (key && key === process.env.SECRET_KEY) return true;
-  if (adminKey && adminKey === process.env.SECRET_KEY) return true;
-  
-  // Admin panel login kontrolü
-  if (username && password) {
-    const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'yonetici';
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'logo123';
-    return username === ADMIN_USERNAME && password === ADMIN_PASSWORD;
-  }
-  
-  return false;
-}
+    window.manualSync=async()=>{const btn=document.getElementById('syncBtn'),ot=btn.textContent;btn.disabled=true;btn.textContent='⏳...';try{const k=prompt('🔑 Secret Key:');if(!k)return;const r=await fetch(`/api/sync-matches?key=${k}`),d=await r.json();d.ok?alert(`✅ ${d.message}\nToplam: ${d.stats.totalMatches}`):alert('❌ '+d.error);await loadMatches()}catch(e){alert('❌ Hata')}finally{btn.disabled=false;btn.textContent=ot}};
 
-// ========== 1. CHECK AUTH (Admin Panel Login) ==========
-async function handleCheckAuth(req) {
-  const { username, password } = req.body;
-  
-  if (!username || !password) {
-    return { ok: false, message: 'Kullanıcı adı ve şifre gerekli' };
-  }
+    window.openSuperligModal=()=>document.getElementById('superligModal').classList.remove('hidden');
+    window.closeSuperligModal=()=>{document.getElementById('superligModal').classList.add('hidden');document.getElementById('slHomeTeam').value='';document.getElementById('slAwayTeam').value='';document.getElementById('slDate').value='';document.getElementById('slTime').value=''};
 
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'logo123';
-  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'yonetici';
+    window.addSuperligMatch=async()=>{const h=document.getElementById('slHomeTeam').value.trim(),a=document.getElementById('slAwayTeam').value.trim(),d=document.getElementById('slDate').value,t=document.getElementById('slTime').value;if(!h||!a||!d)return alert('⚠️ Eksik bilgi');try{const k=prompt('🔑 Secret Key:');if(!k)return;const r=await fetch('/api/admin?action=add-superlig-match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,home:h,away:a,date:d,time:t})}),res=await r.json();res.ok?(alert(`✅ ${res.message}`),closeSuperligModal(),await loadMatches()):alert(`❌ ${res.error}`)}catch(e){alert('❌ Hata')}};
 
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    return { ok: true, message: 'Giriş başarılı' };
-  }
-  
-  return { ok: false, message: 'Kullanıcı adı veya şifre hatalı' };
-}
+    window.openSuperligScoreModal=async()=>{document.getElementById('superligScoreModal').classList.remove('hidden');await loadPendingSuperligMatches()};
+    window.closeSuperligScoreModal=()=>document.getElementById('superligScoreModal').classList.add('hidden');
 
-// ========== 2. UPDATE LOGO ==========
-async function handleUpdateLogo(req) {
-  const { teamName, logoUrl } = req.body;
+    async function loadPendingSuperligMatches(){const c=document.getElementById('superligMatchesList');c.innerHTML='<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full"></div></div>';try{let k=sessionStorage.getItem('adminKey');if(!k){k=prompt('🔑 Admin Key:');if(!k)return;sessionStorage.setItem('adminKey',k)}const r=await fetch('/api/admin?action=get-pending-superlig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})}),d=await r.json();if(!d.ok){if(r.status===403){sessionStorage.removeItem('adminKey');alert('❌ Geçersiz key');await loadPendingSuperligMatches();return}throw new Error(d.error)}const m=d.matches||[];if(m.length===0){c.innerHTML='<div class="text-center py-8"><div class="text-6xl mb-4">✅</div><p>Bekleyen maç yok</p></div>';return}c.innerHTML=m.map((mt,i)=>`<div class="border rounded-lg p-4"><div class="flex justify-between mb-4"><div class="flex gap-4 flex-1"><div class="text-center flex-1">${mt.homeLogo?`<img src="${mt.homeLogo}" class="w-12 h-12 mx-auto mb-2 object-contain">`:''}< p class="font-bold text-sm">${mt.home}</p></div><div class="text-center px-4"><p class="text-2xl font-bold text-gray-400">VS</p></div><div class="text-center flex-1">${mt.awayLogo?`<img src="${mt.awayLogo}" class="w-12 h-12 mx-auto mb-2 object-contain">`:''}<p class="font-bold text-sm">${mt.away}</p></div></div><div class="text-right"><p class="text-xs text-gray-500">${new Date(mt.date).toLocaleDateString('tr-TR')}</p><p class="text-xs text-orange-600 font-semibold">${mt.count} tahmin</p></div></div><div class="flex gap-3"><div class="flex-1 flex gap-2"><input type="number" min="0" max="10" id="homeScore_${i}" class="w-16 h-12 text-center text-xl font-bold border-2 rounded-lg"><span class="text-2xl font-bold text-gray-400">-</span><input type="number" min="0" max="10" id="awayScore_${i}" class="w-16 h-12 text-center text-xl font-bold border-2 rounded-lg"></div><button onclick="submitSingleMatchScore('${mt.matchId}',${i})" class="px-6 py-3 bg-orange-500 text-white rounded-lg font-semibold">💾 Kaydet</button></div></div>`).join('')}catch(e){c.innerHTML='<div class="text-center py-8 text-red-500"><p>❌ Hata</p></div>'}}
 
-  if (!teamName || !logoUrl) {
-    throw new Error('teamName ve logoUrl gerekli');
-  }
+    window.submitSingleMatchScore=async(mid,i)=>{const h=document.getElementById(`homeScore_${i}`).value,a=document.getElementById(`awayScore_${i}`).value;if(!h||!a)return alert('⚠️ Skor girin');const sc=`${h}-${a}`;if(!confirm(`🎯 Skor: ${sc}\n\nTÜM tahminler güncellenecek. Emin misiniz?`))return;try{let k=sessionStorage.getItem('adminKey');if(!k){k=prompt('🔑 Secret Key:');if(!k)return;sessionStorage.setItem('adminKey',k)}const btn=event.target,ot=btn.textContent;btn.disabled=true;btn.textContent='⏳...';const r=await fetch('/api/admin?action=manual-superlig-scores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,matchId:mid,actualScore:sc})}),res=await r.json();if(res.ok){btn.textContent='✅';btn.classList.add('bg-green-500');setTimeout(async()=>await loadPendingSuperligMatches(),1500)}else{r.status===403?(sessionStorage.removeItem('adminKey'),alert('❌ Key yanlış')):alert(`❌ ${res.error}`);btn.disabled=false;btn.textContent=ot}}catch(e){alert('❌ Hata');event.target.disabled=false;event.target.textContent='💾 Kaydet'}};
 
-  if (!logoUrl.startsWith('http://') && !logoUrl.startsWith('https://')) {
-    throw new Error('Geçersiz URL formatı');
-  }
+    window.forceUpdateScores=async()=>{if(!confirm('🔄 API\'den skorları çekmek istiyor musunuz?'))return;try{const k=prompt('🔑 Secret Key:');if(!k)return;const div=document.createElement('div');div.className='fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';div.innerHTML='⏳ Güncelleniyor...';document.body.appendChild(div);const r=await fetch('/api/admin?action=force-update-scores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})}),res=await r.json();div.remove();res.ok?alert(`✅ ${res.message}\n- Bekleyen: ${res.stats?.totalPending||0}\n- Skor: ${res.stats?.scoresFound||0}\n- Güncellenen: ${res.stats?.updated||0}`):alert(`❌ ${res.error}`)}catch(e){alert('❌ Hata')}};
 
-  console.log(`🎨 Logo güncelleniyor: ${teamName}`);
+    window.recalculateAllStats=async()=>{if(!confirm('⚠️ TÜM stats sıfırlanacak ve yeniden hesaplanacak.\n\nDevam?'))return;try{let k=sessionStorage.getItem('adminKey');if(!k){k=prompt('🔑 Admin Key:');if(!k)return;sessionStorage.setItem('adminKey',k)}const div=document.createElement('div');div.className='fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';div.innerHTML='⏳ Hesaplanıyor...';document.body.appendChild(div);const r=await fetch('/api/admin?action=recalculate-all-stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})}),res=await r.json();div.remove();res.ok?alert(`✅ ${res.message}\n- Toplam: ${res.stats?.totalUsers||0}\n- Güncellenen: ${res.stats?.updatedUsers||0}\n- Atlanan: ${res.stats?.skippedUsers||0}\n- Doğru: ${res.stats?.correctPredictions||0}\n- Yanlış: ${res.stats?.wrongPredictions||0}`):(r.status===403?(sessionStorage.removeItem('adminKey'),alert('❌ Key yanlış')):alert(`❌ ${res.error}`))}catch(e){alert('❌ Hata')}};
 
-  // Teams collection'a kaydet
-  const teamDocId = teamName.toLowerCase().replace(/\s+/g, '-');
-  await db.collection("teams").doc(teamDocId).set({
-    name: teamName,
-    nameLower: teamName.toLowerCase().trim(),
-    logo: logoUrl,
-    lastUpdated: new Date().toISOString(),
-  }, { merge: true });
+    if(sessionStorage.getItem('adminLoggedIn')==='true'){document.getElementById('loginScreen').classList.add('hidden');document.getElementById('mainPanel').classList.remove('hidden')}
 
-  // Bu takımın tüm maçlarını güncelle
-  const matchesSnapshot = await db.collection("matches").get();
-  const batch = db.batch();
-  let updatedCount = 0;
+    window.loadMatches=async()=>{const c=document.getElementById('matchesContainer');c.innerHTML='<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div></div>';try{const snap=await db.collection("matches").get();allMatches=[];snap.forEach(d=>{const m=d.data();m._id=d.id;allMatches.push(m)});allMatches.sort((a,b)=>new Date(a.date||0)-new Date(b.date||0));const missing=allMatches.reduce((cnt,m)=>cnt+(!m.homeLogo?1:0)+(!m.awayLogo?1:0),0);document.getElementById('totalMatches').textContent=allMatches.length;document.getElementById('missingCount').textContent=missing;renderMatches()}catch(e){c.innerHTML='<div class="text-center text-red-500">❌ Hata</div>'}};
 
-  matchesSnapshot.forEach((doc) => {
-    const match = doc.data();
-    let needsUpdate = false;
-    const updates = {};
+    function renderMatches(){const c=document.getElementById('matchesContainer'),st=document.getElementById('searchInput').value.toLowerCase();let f=allMatches.filter(m=>{const hm=!m.homeLogo||m.homeLogo==="",am=!m.awayLogo||m.awayLogo==="",miss=hm||am;if(currentFilter==='missing'&&!miss)return false;if(currentFilter==='complete'&&miss)return false;if(st){const h=(m.home||"").toLowerCase(),a=(m.away||"").toLowerCase();return h.includes(st)||a.includes(st)}return true});if(f.length===0){c.innerHTML='<div class="text-center py-8">😊 Maç yok</div>';return}c.innerHTML=f.map(m=>{const h=m.home||"?",a=m.away||"?",hl=m.homeLogo||PLACEHOLDER,al=m.awayLogo||PLACEHOLDER,dt=m.date?new Date(m.date).toLocaleDateString('tr-TR'):"?",hc=m.homeLogo?"logo-ok":"logo-missing",ac=m.awayLogo?"logo-ok":"logo-missing";return`<div class="bg-white rounded-lg shadow p-4"><div class="flex justify-between mb-3"><span class="text-xs text-gray-500">${dt}</span><span class="text-xs text-gray-400">${m.league||""}</span></div><div class="grid grid-cols-3 gap-4 items-center"><div class="text-center"><img src="${hl}" alt="${h}" class="w-16 h-16 mx-auto mb-2 object-contain ${hc} cursor-pointer" onclick="openEditModal('${m._id}','home')"><p class="font-semibold text-sm">${h}</p></div><div class="text-center"><span class="text-2xl font-bold text-gray-400">VS</span></div><div class="text-center"><img src="${al}" alt="${a}" class="w-16 h-16 mx-auto mb-2 object-contain ${ac} cursor-pointer" onclick="openEditModal('${m._id}','away')"><p class="font-semibold text-sm">${a}</p></div></div></div>`}).join('')}
 
-    if ((match.home || match.homeTeam) === teamName) {
-      updates.homeLogo = logoUrl;
-      needsUpdate = true;
-    }
+    window.filterMatches=f=>{currentFilter=f;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('ring-2','ring-blue-500','font-bold'));event.target.classList.add('ring-2','ring-blue-500','font-bold');renderMatches()};
 
-    if ((match.away || match.awayTeam) === teamName) {
-      updates.awayLogo = logoUrl;
-      needsUpdate = true;
-    }
+    document.getElementById('searchInput').addEventListener('input',renderMatches);
 
-    if (needsUpdate) {
-      batch.update(doc.ref, updates);
-      updatedCount++;
-    }
-  });
+    window.openEditModal=(mid,tt)=>{const m=allMatches.find(x=>x._id===mid);if(!m)return;editingMatch=m;editingTeamType=tt;const tn=tt==='home'?m.home:m.away,cl=tt==='home'?m.homeLogo:m.awayLogo;document.getElementById('editTeamName').value=tn;document.getElementById('editLogoUrl').value=cl||"";if(cl){document.getElementById('previewImage').src=cl;document.getElementById('previewImage').style.display='block';document.getElementById('previewPlaceholder').style.display='none'}else{document.getElementById('previewImage').style.display='none';document.getElementById('previewPlaceholder').style.display='flex'}document.getElementById('editModal').classList.remove('hidden')};
 
-  if (updatedCount > 0) {
-    await batch.commit();
-  }
+    window.closeModal=()=>{document.getElementById('editModal').classList.add('hidden');editingMatch=null;editingTeamType=null};
 
-  return {
-    ok: true,
-    message: `✅ ${teamName} logosu güncellendi`,
-    updatedMatches: updatedCount,
-    logoUrl: logoUrl,
-  };
-}
+    document.getElementById('editLogoUrl').addEventListener('input',e=>{const u=e.target.value.trim(),p=document.getElementById('previewImage'),ph=document.getElementById('previewPlaceholder');if(u){p.src=u;p.style.display='block';ph.style.display='none'}else{p.style.display='none';ph.style.display='flex'}});
 
-// ========== 3. ADD SÜPER LIG MATCH ==========
-async function handleAddSuperligMatch(req) {
-  const { home, away, date, time } = req.body;
-
-  if (!home || !away || !date) {
-    throw new Error('Eksik bilgi: home, away, date gerekli');
-  }
-
-  console.log(`🇹🇷 Süper Lig maçı ekleniyor: ${home} vs ${away}`);
-
-  // Logoları bul
-  let homeLogo = "";
-  let awayLogo = "";
-
-  try {
-    const homeSnap = await db.collection("teams")
-      .where("nameLower", "==", home.toLowerCase().trim())
-      .limit(1)
-      .get();
-    
-    if (!homeSnap.empty) {
-      homeLogo = homeSnap.docs[0].data().logo || "";
-    }
-
-    const awaySnap = await db.collection("teams")
-      .where("nameLower", "==", away.toLowerCase().trim())
-      .limit(1)
-      .get();
-    
-    if (!awaySnap.empty) {
-      awayLogo = awaySnap.docs[0].data().logo || "";
-    }
-  } catch (e) {
-    console.warn('Logo fetch error:', e.message);
-  }
-
-  const fullDateTime = time ? `${date} ${time}` : date;
-  const docId = `sl-${home}-${away}-${date}`.replace(/\s+/g, "_").replace(/:/g, "-");
-  
-  const matchData = {
-    competition: "super-lig",
-    league: "Süper Lig",
-    home: home,
-    away: away,
-    homeTeam: home,
-    awayTeam: away,
-    homeLogo: homeLogo,
-    awayLogo: awayLogo,
-    date: fullDateTime,
-    time: fullDateTime,
-    votes: {},
-    popularPrediction: null,
-    voteCount: 0,
-    syncedAt: new Date().toISOString(),
-  };
-
-  await db.collection("matches").doc(docId).set(matchData);
-
-  return {
-    ok: true,
-    message: `✅ ${home} vs ${away} maçı eklendi`,
-    matchId: docId,
-    logos: {
-      home: !!homeLogo,
-      away: !!awayLogo,
-    },
-  };
-}
-
-// ========== 4. SYNC MATCHES LOGOS ==========
-async function handleSyncMatchesLogos(req) {
-  console.log("🔄 Matches logoları güncelleniyor...");
-
-  // Teams map
-  const teamsSnapshot = await db.collection("teams").get();
-  const teamsMap = new Map();
-  
-  teamsSnapshot.forEach((doc) => {
-    const data = doc.data();
-    if (data.name) {
-      const nameLower = data.name.toLowerCase().trim();
-      teamsMap.set(nameLower, data.logo || null);
-    }
-    if (data.nameLower) {
-      teamsMap.set(data.nameLower, data.logo || null);
-    }
-  });
-
-  // Tüm maçları güncelle
-  const matchesSnapshot = await db.collection("matches").get();
-  let updated = 0;
-  let notFound = [];
-  
-  for (const doc of matchesSnapshot.docs) {
-    const data = doc.data();
-    const home = data.home || data.homeTeam;
-    const away = data.away || data.awayTeam;
-    
-    if (!home || !away) continue;
-    
-    const homeLogo = teamsMap.get(home.toLowerCase().trim());
-    const awayLogo = teamsMap.get(away.toLowerCase().trim());
-    
-    if (!homeLogo) notFound.push(home);
-    if (!awayLogo) notFound.push(away);
-    
-    await doc.ref.update({
-      homeLogo: homeLogo || "",
-      awayLogo: awayLogo || "",
-    });
-    
-    updated++;
-  }
-
-  const uniqueNotFound = [...new Set(notFound)];
-
-  return {
-    ok: true,
-    message: `✅ ${updated} maç güncellendi`,
-    stats: {
-      totalMatches: matchesSnapshot.size,
-      updatedMatches: updated,
-      teamsInMap: teamsMap.size,
-      missingLogos: uniqueNotFound.length,
-    },
-    missingTeams: uniqueNotFound.length > 0 ? uniqueNotFound : undefined,
-  };
-}
-
-// ========== 5. MIGRATE VOTES (TEK SEFERLIK) ==========
-async function handleMigrateVotes(req) {
-  console.log('🚀 Migrasyon başlatılıyor...');
-
-  const matchesSnapshot = await db.collection("matches").get();
-  
-  let totalMigrated = 0;
-  let totalSkipped = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  for (const matchDoc of matchesSnapshot.docs) {
-    const match = matchDoc.data();
-    const matchId = matchDoc.id;
-    const votes = match.votes || {};
-
-    if (Object.keys(votes).length === 0) {
-      totalSkipped++;
-      continue;
-    }
-
-    console.log(`📊 ${matchId}: ${Object.keys(votes).length} oy bulundu`);
-
-    for (const [userId, prediction] of Object.entries(votes)) {
-      const predictionId = `${userId}_${matchId}`;
-      const predictionRef = db.collection("predictions").doc(predictionId);
-
-      // Önce var mı kontrol et
-      const existingPred = await predictionRef.get();
-      
-      if (existingPred.exists) {
-        console.log(`⏭️ Zaten var: ${predictionId}`);
-        totalSkipped++;
-        continue;
-      }
-
-      batch.set(predictionRef, {
-        userId: userId,
-        matchId: matchId,
-        prediction: prediction,
-        homeTeam: match.home || match.homeTeam,
-        awayTeam: match.away || match.awayTeam,
-        homeLogo: match.homeLogo || "",
-        awayLogo: match.awayLogo || "",
-        league: match.league || match.competition,
-        matchDate: match.date || match.time,
-        createdAt: match.lastVoteAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'pending',
-        points: 0,
-        migratedFrom: 'matches.votes'
-      });
-
-      batchCount++;
-      totalMigrated++;
-
-      // Her 500 işlemde bir commit
-      if (batchCount >= 500) {
-        await batch.commit();
-        console.log(`💾 ${batchCount} kayıt commit edildi`);
-        batchCount = 0;
-      }
-    }
-  }
-
-  // Kalan kayıtları commit et
-  if (batchCount > 0) {
-    await batch.commit();
-    console.log(`💾 Son ${batchCount} kayıt commit edildi`);
-  }
-
-  console.log(`✅ Migrasyon tamamlandı!`);
-
-  return {
-    ok: true,
-    message: 'Migrasyon başarılı',
-    stats: {
-      totalMigrated,
-      totalSkipped,
-      totalMatches: matchesSnapshot.size
-    }
-  };
-}
-
-// ========== 6. UPDATE POPULAR PREDICTIONS ==========
-async function handleUpdatePopularPredictions(req) {
-  console.log('🔄 Popüler tahminler güncelleniyor...');
-
-  const matchesSnapshot = await db.collection("matches").get();
-  
-  let updatedCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  for (const matchDoc of matchesSnapshot.docs) {
-    const matchId = matchDoc.id;
-
-    // Bu maç için tüm tahminleri getir
-    const predictionsQuery = await db.collection("predictions")
-      .where("matchId", "==", matchId)
-      .get();
-
-    if (predictionsQuery.empty) {
-      batch.update(matchDoc.ref, {
-        popularPrediction: null,
-        voteCount: 0,
-        votes: {}
-      });
-      batchCount++;
-      continue;
-    }
-
-    // Tahminleri say
-    const counts = {};
-    predictionsQuery.forEach(predDoc => {
-      const pred = predDoc.data().prediction;
-      counts[pred] = (counts[pred] || 0) + 1;
-    });
-
-    // En popüleri bul
-    let popular = null;
-    let maxCount = 0;
-    for (let [score, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        popular = score;
-        maxCount = count;
-      }
-    }
-
-    batch.update(matchDoc.ref, {
-      popularPrediction: popular,
-      voteCount: maxCount,
-      votes: {}
-    });
-
-    batchCount++;
-    updatedCount++;
-
-    if (batchCount >= 500) {
-      await batch.commit();
-      console.log(`💾 ${batchCount} maç commit edildi`);
-      batchCount = 0;
-    }
-  }
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} maç güncellendi`,
-    stats: {
-      totalMatches: matchesSnapshot.size,
-      updated: updatedCount
-    }
-  };
-}
-
-// ========== 7. FORCE UPDATE SCORES (Bekleyen Maçları Güncelle) ==========
-async function handleForceUpdateScores(req) {
-  console.log('🔄 Bekleyen maçların skorları kontrol ediliyor...');
-
-  // Tüm pending predictions'ları getir
-  const predictionsQuery = await db.collection("predictions")
-    .where("status", "==", "pending")
-    .get();
-
-  if (predictionsQuery.empty) {
-    return {
-      ok: true,
-      message: 'Bekleyen maç yok',
-      updated: 0
-    };
-  }
-
-  console.log(`📊 ${predictionsQuery.size} bekleyen tahmin bulundu`);
-
-  // Numeric match ID'leri topla
-  const numericMatchIds = [];
-  predictionsQuery.forEach(doc => {
-    const matchId = doc.data().matchId;
-    if (/^\d+$/.test(matchId) && !numericMatchIds.includes(matchId)) {
-      numericMatchIds.push(matchId);
-    }
-  });
-
-  if (numericMatchIds.length === 0) {
-    return {
-      ok: true,
-      message: 'Numeric match ID yok (Süper Lig maçları için API yok)',
-      updated: 0
-    };
-  }
-
-  console.log(`🎯 ${numericMatchIds.length} maç için skorlar isteniyor...`);
-
-  // API'den skorları al
-  const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
-  const liveScores = {};
-
-  for (const matchId of numericMatchIds) {
-    try {
-      const url = `https://api.football-data.org/v4/matches/${matchId}`;
-      const response = await fetch(url, {
-        headers: { 'X-Auth-Token': FOOTBALL_API_KEY }
-      });
-
-      if (response.ok) {
-        const m = await response.json();
-        
-        if (m.status === 'FINISHED' && m.score?.fullTime) {
-          liveScores[matchId] = {
-            homeScore: m.score.fullTime.home,
-            awayScore: m.score.fullTime.away,
-            status: 'FINISHED'
-          };
-          console.log(`✅ ${matchId}: ${m.score.fullTime.home}-${m.score.fullTime.away}`);
-        }
-      }
-    } catch (e) {
-      console.warn(`⚠️ ${matchId}: ${e.message}`);
-    }
-  }
-
-  console.log(`📊 ${Object.keys(liveScores).length} maç skoru bulundu`);
-
-  if (Object.keys(liveScores).length === 0) {
-    return {
-      ok: true,
-      message: 'API\'den skor alınamadı (maçlar çok eski olabilir)',
-      updated: 0
-    };
-  }
-
-  // Predictions'ları güncelle
-  let updatedCount = 0;
-  let correctCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  predictionsQuery.forEach(predDoc => {
-    const pred = predDoc.data();
-    const score = liveScores[pred.matchId];
-
-    if (score) {
-      // Zaten hesaplanmış mı kontrol et
-      if (pred.calculatedAt) {
-        console.log(`⏭️ Zaten hesaplanmış: ${predDoc.id}`);
-        return;
-      }
-      
-      const actualScore = `${score.homeScore}-${score.awayScore}`;
-      const status = pred.prediction === actualScore ? 'correct' : 'wrong';
-      const points = status === 'correct' ? 10 : 0;
-
-      // Prediction güncelle
-      batch.update(predDoc.ref, {
-        status: status,
-        actualScore: actualScore,
-        points: points,
-        updatedAt: new Date().toISOString(),
-        calculatedAt: new Date().toISOString()
-      });
-
-      // User stats güncelle (sadece Google kullanıcıları için)
-      const userId = pred.userId;
-      if (userId && !userId.startsWith('anon-')) {
-        const userRef = db.collection("users").doc(userId);
-        
-        batch.update(userRef, {
-          'stats.points': admin.firestore.FieldValue.increment(points),
-          'stats.totalPredictions': admin.firestore.FieldValue.increment(1),
-          'stats.correctPredictions': admin.firestore.FieldValue.increment(status === 'correct' ? 1 : 0),
-          'stats.lastUpdated': new Date().toISOString()
-        });
-
-        // Point History kaydet
-        const pointHistoryRef = db.collection("pointHistory").doc();
-        batch.set(pointHistoryRef, {
-          userId: userId,
-          matchId: pred.matchId,
-          prediction: pred.prediction,
-          actualScore: actualScore,
-          points: points,
-          timestamp: new Date().toISOString(),
-          homeTeam: pred.homeTeam,
-          awayTeam: pred.awayTeam,
-          league: pred.league
-        });
-
-        if (status === 'correct') correctCount++;
-      }
-
-      batchCount++;
-      updatedCount++;
-
-      if (batchCount >= 450) {
-        batch.commit();
-        batchCount = 0;
-      }
-    }
-  });
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} tahmin güncellendi (${correctCount} doğru)`,
-    stats: {
-      totalPending: predictionsQuery.size,
-      scoresFound: Object.keys(liveScores).length,
-      updated: updatedCount,
-      correctPredictions: correctCount
-    }
-  };
-}
-
-// ========== 8. MANUAL SUPERLIG SCORES (Tüm Kullanıcılar İçin) ==========
-async function handleManualSuperligScores(req) {
-  const { matchId, actualScore } = req.body;
-
-  if (!matchId || !actualScore) {
-    throw new Error('matchId ve actualScore gerekli');
-  }
-
-  // Skor formatı kontrolü
-  if (!/^\d+-\d+$/.test(actualScore)) {
-    throw new Error('Geçersiz skor formatı. Örnek: "2-1"');
-  }
-
-  console.log(`🎯 Manuel skor girişi: ${matchId} → ${actualScore}`);
-
-  // Bu maç için TÜM kullanıcıların tahminlerini bul
-  const predictionsQuery = await db.collection("predictions")
-    .where("matchId", "==", matchId)
-    .get();
-
-  if (predictionsQuery.empty) {
-    return {
-      ok: true,
-      message: 'Bu maç için tahmin bulunamadı',
-      updated: 0
-    };
-  }
-
-  console.log(`📊 ${predictionsQuery.size} tahmin bulundu`);
-
-  // Tüm tahminleri güncelle ve user stats'ı güncelle
-  let updatedCount = 0;
-  let correctCount = 0;
-  const batch = db.batch();
-  let batchCount = 0;
-
-  predictionsQuery.forEach(predDoc => {
-    const pred = predDoc.data();
-    
-    // Zaten hesaplanmış mı kontrol et (double counting önleme)
-    if (pred.calculatedAt) {
-      console.log(`⏭️ Zaten hesaplanmış: ${predDoc.id}`);
-      return;
-    }
-    
-    const status = pred.prediction === actualScore ? 'correct' : 'wrong';
-    const points = status === 'correct' ? 10 : 0;
-
-    // Prediction güncelle
-    batch.update(predDoc.ref, {
-      status: status,
-      actualScore: actualScore,
-      points: points,
-      updatedAt: new Date().toISOString(),
-      calculatedAt: new Date().toISOString()
-    });
-
-    // User stats güncelle (sadece Google kullanıcıları için)
-    const userId = pred.userId;
-    if (userId && !userId.startsWith('anon-')) {
-      const userRef = db.collection("users").doc(userId);
-      
-      // Stats artır
-      batch.update(userRef, {
-        'stats.points': admin.firestore.FieldValue.increment(points),
-        'stats.totalPredictions': admin.firestore.FieldValue.increment(1),
-        'stats.correctPredictions': admin.firestore.FieldValue.increment(status === 'correct' ? 1 : 0),
-        'stats.lastUpdated': new Date().toISOString()
-      });
-
-      // Point History kaydet
-      const pointHistoryRef = db.collection("pointHistory").doc();
-      batch.set(pointHistoryRef, {
-        userId: userId,
-        matchId: matchId,
-        prediction: pred.prediction,
-        actualScore: actualScore,
-        points: points,
-        timestamp: new Date().toISOString(),
-        homeTeam: pred.homeTeam,
-        awayTeam: pred.awayTeam,
-        league: pred.league
-      });
-
-      if (status === 'correct') correctCount++;
-    }
-
-    batchCount++;
-    updatedCount++;
-
-    if (batchCount >= 450) { // 500 yerine 450 (user updates dahil)
-      batch.commit();
-      batchCount = 0;
-    }
-  });
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
-
-  console.log(`✅ ${updatedCount} tahmin güncellendi (${correctCount} doğru)`);
-
-  return {
-    ok: true,
-    message: `✅ ${updatedCount} tahmin güncellendi (${correctCount} doğru)`,
-    matchId: matchId,
-    actualScore: actualScore,
-    totalUpdated: updatedCount,
-    correctPredictions: correctCount
-  };
-}
-
-// ========== 9. GET PENDING SUPERLIG MATCHES (Admin Panel İçin) ==========
-async function handleGetPendingSuperligMatches(req) {
-  console.log('📋 Bekleyen Süper Lig maçları listeleniyor...');
-
-  try {
-    const predictionsQuery = await db.collection("predictions")
-      .where("status", "==", "pending")
-      .get();
-
-    const superligMatches = new Map();
-
-    predictionsQuery.forEach(doc => {
-      const data = doc.data();
-      
-      // Sadece Süper Lig maçları
-      if (data.matchId && data.matchId.startsWith('sl-')) {
-        if (!superligMatches.has(data.matchId)) {
-          superligMatches.set(data.matchId, {
-            matchId: data.matchId,
-            home: data.homeTeam || 'Bilinmiyor',
-            away: data.awayTeam || 'Bilinmiyor',
-            homeLogo: data.homeLogo || '',
-            awayLogo: data.awayLogo || '',
-            date: data.matchDate,
-            count: 0
-          });
-        }
-        superligMatches.get(data.matchId).count++;
-      }
-    });
-
-    const matches = Array.from(superligMatches.values());
-    
-    // Tarihe göre sırala
-    matches.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    console.log(`✅ ${matches.length} bekleyen Süper Lig maçı bulundu`);
-
-    return {
-      ok: true,
-      matches: matches,
-      count: matches.length
-    };
-
-  } catch (error) {
-    console.error('Get pending matches error:', error);
-    return {
-      ok: false,
-      error: error.message,
-      matches: []
-    };
-  }
-}
-
-// ========== 10. RECALCULATE ALL STATS (GEÇMİŞ TAHMİNLERİ HESAPLA) ==========
-async function handleRecalculateAllStats(req) {
-  console.log('🔄 TÜM kullanıcı stats\'ları yeniden hesaplanıyor...');
-
-  try {
-    // 1. Tüm users'ları sıfırla
-    const usersSnapshot = await db.collection("users").get();
-    const resetBatch = db.batch();
-    let resetCount = 0;
-
-    usersSnapshot.forEach(userDoc => {
-      resetBatch.update(userDoc.ref, {
-        'stats.points': 0,
-        'stats.totalPredictions': 0,
-        'stats.correctPredictions': 0,
-        'stats.lastUpdated': new Date().toISOString()
-      });
-      resetCount++;
-    });
-
-    if (resetCount > 0) {
-      await resetBatch.commit();
-      console.log(`✅ ${resetCount} kullanıcı stats sıfırlandı`);
-    }
-
-    // 2. Tüm predictions'ları çek (correct ve wrong olanlar)
-    const correctQuery = await db.collection("predictions")
-      .where("status", "==", "correct")
-      .get();
-    
-    const wrongQuery = await db.collection("predictions")
-      .where("status", "==", "wrong")
-      .get();
-
-    console.log(`📊 ${correctQuery.size} doğru, ${wrongQuery.size} yanlış tahmin bulundu`);
-
-    // 3. User bazında grupla
-    const userStats = new Map();
-
-    correctQuery.forEach(doc => {
-      const pred = doc.data();
-      const userId = pred.userId;
-      
-      if (!userId || userId.startsWith('anon-')) return;
-
-      if (!userStats.has(userId)) {
-        userStats.set(userId, {
-          points: 0,
-          totalPredictions: 0,
-          correctPredictions: 0
-        });
-      }
-
-      const stats = userStats.get(userId);
-      stats.points += 10;
-      stats.totalPredictions += 1;
-      stats.correctPredictions += 1;
-    });
-
-    wrongQuery.forEach(doc => {
-      const pred = doc.data();
-      const userId = pred.userId;
-      
-      if (!userId || userId.startsWith('anon-')) return;
-
-      if (!userStats.has(userId)) {
-        userStats.set(userId, {
-          points: 0,
-          totalPredictions: 0,
-          correctPredictions: 0
-        });
-      }
-
-      const stats = userStats.get(userId);
-      stats.totalPredictions += 1;
-    });
-
-    console.log(`👥 ${userStats.size} kullanıcı için stats hesaplandı`);
-
-    // 4. User stats'ları güncelle - TEK TEK (batch değil!)
-    let updatedCount = 0;
-    let skippedCount = 0;
-
-    for (const [userId, stats] of userStats.entries()) {
-      try {
-        const userRef = db.collection("users").doc(userId);
-        const userDoc = await userRef.get();
-        
-        if (!userDoc.exists) {
-          console.warn(`⚠️ User bulunamadı: ${userId} - atlanıyor`);
-          skippedCount++;
-          continue;
-        }
-        
-        // Tek tek update (batch yok!)
-        await userRef.update({
-          'stats.points': stats.points,
-          'stats.totalPredictions': stats.totalPredictions,
-          'stats.correctPredictions': stats.correctPredictions,
-          'stats.lastUpdated': new Date().toISOString()
-        });
-        
-        updatedCount++;
-        
-        // Her 10 kullanıcıda bir log
-        if (updatedCount % 10 === 0) {
-          console.log(`💾 ${updatedCount} kullanıcı güncellendi...`);
-        }
-        
-      } catch (error) {
-        console.error(`❌ User güncelleme hatası (${userId}):`, error.message);
-        skippedCount++;
-      }
-    }
-
-    console.log(`✅ İşlem tamamlandı: ${updatedCount} güncellendi, ${skippedCount} atlanan`);
-
-    return {
-      ok: true,
-      message: '✅ Tüm kullanıcı stats\'ları yeniden hesaplandı',
-      stats: {
-        totalUsers: userStats.size,
-        updatedUsers: updatedCount,
-        skippedUsers: skippedCount,
-        correctPredictions: correctQuery.size,
-        wrongPredictions: wrongQuery.size
-      }
-    };
-
-  } catch (error) {
-    console.error('Recalculate stats error:', error);
-    return {
-      ok: false,
-      error: error.message
-    };
-  }
-}
-
-// ========== MAIN HANDLER ==========
-export default async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  try {
-    const action = req.query.action || req.body?.action;
-
-    if (!action) {
-      return res.status(400).json({ 
-        error: 'Action parameter gerekli',
-        availableActions: [
-          'check-auth',
-          'update-logo',
-          'add-superlig-match',
-          'sync-matches-logos',
-          'migrate-votes',
-          'update-popular-predictions',
-          'force-update-scores',
-          'manual-superlig-scores',
-          'get-pending-superlig',
-          'recalculate-all-stats'
-        ]
-      });
-    }
-
-    // Auth kontrolü (check-auth hariç)
-    if (action !== 'check-auth' && action !== 'get-pending-superlig') {
-      const isAuthorized = await checkAuth(req);
-      if (!isAuthorized) {
-        return res.status(403).json({ error: 'Unauthorized' });
-      }
-    }
-
-    // get-pending-superlig için özel auth kontrolü
-    if (action === 'get-pending-superlig') {
-      const { key } = req.body || req.query;
-      if (!key || key !== process.env.SECRET_KEY) {
-        return res.status(403).json({ error: 'Unauthorized' });
-      }
-    }
-
-    // Action'a göre işlem yap
-    let result;
-    
-    switch (action) {
-      case 'check-auth':
-        result = await handleCheckAuth(req);
-        break;
-      
-      case 'update-logo':
-        result = await handleUpdateLogo(req);
-        break;
-      
-      case 'add-superlig-match':
-        result = await handleAddSuperligMatch(req);
-        break;
-      
-      case 'sync-matches-logos':
-        result = await handleSyncMatchesLogos(req);
-        break;
-      
-      case 'migrate-votes':
-        result = await handleMigrateVotes(req);
-        break;
-      
-      case 'update-popular-predictions':
-        result = await handleUpdatePopularPredictions(req);
-        break;
-      
-      case 'force-update-scores':
-        result = await handleForceUpdateScores(req);
-        break;
-      
-      case 'manual-superlig-scores':
-        result = await handleManualSuperligScores(req);
-        break;
-      
-      case 'get-pending-superlig':
-        result = await handleGetPendingSuperligMatches(req);
-        break;
-      
-      case 'recalculate-all-stats':
-        result = await handleRecalculateAllStats(req);
-        break;
-      
-      default:
-        return res.status(400).json({ 
-          error: 'Geçersiz action',
-          received: action
-        });
-    }
-
-    return res.status(200).json(result);
-
-  } catch (error) {
-    console.error('Admin API error:', error);
-    return res.status(500).json({ 
-      ok: false,
-      error: error.message || 'Internal server error' 
-    });
-  }
-}
+    window.saveLogoUpdate=async()=>{if(!editingMatch||!editingTeamType)return;const url=document.getElementById('editLogoUrl').value.trim(),tn=editingTeamType==='home'?editingMatch.home:editingMatch.away;if(!url)return alert('⚠️ URL girin');if(sessionStorage.getItem('adminLoggedIn')!=='true')return alert('❌ Giriş yapın');try{let k=sessionStorage.getItem('adminKey');if(!k){k=prompt('🔑 Admin Key:');if(!k)return;sessionStorage.setItem('adminKey',k)}const r=await fetch('/api/admin?action=update-logo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teamName:tn,logoUrl:url,adminKey:k})}),res=await r.json();if(r.ok&&res.ok){alert(`✅ ${res.message}\n${res.updatedMatches} maç güncellendi`);closeModal();await loadMatches()}else{r.status===403?(sessionStorage.removeItem('adminKey'),alert('❌ Key yanlış')):alert(`❌ ${res.error}`)}}catch(e){alert('❌ Hata')}};
+  </script>
+</body>
+</html>
