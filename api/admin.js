@@ -733,27 +733,29 @@ async function handleRecalculateAllStats(req) {
   console.log('🔄 TÜM kullanıcı stats\'ları yeniden hesaplanıyor...');
 
   try {
-    // 1. Tüm users'ları sıfırla
+    // 1. Önce tüm geçerli kullanıcıları topla (users collection'dan)
     const usersSnapshot = await db.collection("users").get();
-    const resetBatch = db.batch();
-    let resetCount = 0;
-
+    const validUserIds = new Set();
+    
     usersSnapshot.forEach(userDoc => {
-      resetBatch.update(userDoc.ref, {
+      validUserIds.add(userDoc.id);
+    });
+    
+    console.log(`✅ ${validUserIds.size} geçerli kullanıcı bulundu`);
+
+    // 2. Tüm kullanıcıların stats'ını sıfırla
+    for (const userId of validUserIds) {
+      await db.collection("users").doc(userId).update({
         'stats.points': 0,
         'stats.totalPredictions': 0,
         'stats.correctPredictions': 0,
         'stats.lastUpdated': new Date().toISOString()
       });
-      resetCount++;
-    });
-
-    if (resetCount > 0) {
-      await resetBatch.commit();
-      console.log(`✅ ${resetCount} kullanıcı stats sıfırlandı`);
     }
+    
+    console.log(`✅ ${validUserIds.size} kullanıcı stats sıfırlandı`);
 
-    // 2. Tüm predictions'ları çek (correct ve wrong olanlar)
+    // 3. Tüm predictions'ları çek (correct ve wrong olanlar)
     const correctQuery = await db.collection("predictions")
       .where("status", "==", "correct")
       .get();
@@ -764,14 +766,17 @@ async function handleRecalculateAllStats(req) {
 
     console.log(`📊 ${correctQuery.size} doğru, ${wrongQuery.size} yanlış tahmin bulundu`);
 
-    // 3. User bazında grupla
+    // 4. User bazında grupla (SADECE GEÇERLİ KULLANICILAR)
     const userStats = new Map();
 
     correctQuery.forEach(doc => {
       const pred = doc.data();
       const userId = pred.userId;
       
-      if (!userId || userId.startsWith('anon-')) return;
+      // Sadece geçerli kullanıcılar
+      if (!userId || userId.startsWith('anon-') || !validUserIds.has(userId)) {
+        return;
+      }
 
       if (!userStats.has(userId)) {
         userStats.set(userId, {
@@ -791,7 +796,10 @@ async function handleRecalculateAllStats(req) {
       const pred = doc.data();
       const userId = pred.userId;
       
-      if (!userId || userId.startsWith('anon-')) return;
+      // Sadece geçerli kullanıcılar
+      if (!userId || userId.startsWith('anon-') || !validUserIds.has(userId)) {
+        return;
+      }
 
       if (!userStats.has(userId)) {
         userStats.set(userId, {
@@ -807,39 +815,39 @@ async function handleRecalculateAllStats(req) {
 
     console.log(`👥 ${userStats.size} kullanıcı için stats hesaplandı`);
 
-    // 4. User stats'ları güncelle
-    const updateBatch = db.batch();
-    let updateCount = 0;
+    // 5. User stats'ları güncelle - TEK TEK
+    let updatedCount = 0;
 
     for (const [userId, stats] of userStats.entries()) {
-      const userRef = db.collection("users").doc(userId);
-      
-      updateBatch.update(userRef, {
-        'stats.points': stats.points,
-        'stats.totalPredictions': stats.totalPredictions,
-        'stats.correctPredictions': stats.correctPredictions,
-        'stats.lastUpdated': new Date().toISOString()
-      });
-      
-      updateCount++;
-
-      if (updateCount >= 500) {
-        await updateBatch.commit();
-        console.log(`💾 ${updateCount} kullanıcı güncellendi`);
-        updateCount = 0;
+      try {
+        await db.collection("users").doc(userId).update({
+          'stats.points': stats.points,
+          'stats.totalPredictions': stats.totalPredictions,
+          'stats.correctPredictions': stats.correctPredictions,
+          'stats.lastUpdated': new Date().toISOString()
+        });
+        
+        updatedCount++;
+        
+        // Her 10 kullanıcıda bir log
+        if (updatedCount % 10 === 0) {
+          console.log(`💾 ${updatedCount}/${userStats.size} kullanıcı güncellendi...`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ User güncelleme hatası (${userId}):`, error.message);
       }
     }
 
-    if (updateCount > 0) {
-      await updateBatch.commit();
-      console.log(`💾 Son ${updateCount} kullanıcı güncellendi`);
-    }
+    console.log(`✅ İşlem tamamlandı: ${updatedCount} kullanıcı güncellendi`);
 
     return {
       ok: true,
       message: '✅ Tüm kullanıcı stats\'ları yeniden hesaplandı',
       stats: {
-        totalUsers: userStats.size,
+        totalValidUsers: validUserIds.size,
+        usersWithPredictions: userStats.size,
+        updatedUsers: updatedCount,
         correctPredictions: correctQuery.size,
         wrongPredictions: wrongQuery.size
       }
